@@ -52,7 +52,11 @@ public class MailAdapter {
     public List<MailMessage> searchMail(String query, String folder, int limit) {
         return pool.withSession(session -> {
             Database mailDb = getMailDatabase(session);
-            DocumentCollection col = mailDb.search(query, null, limit);
+            String viewName = folder != null ? folder : "($Inbox)";
+            View view = mailDb.getView(viewName);
+            DocumentCollection col = view != null
+                    ? view.FTSearch(query, limit)
+                    : mailDb.search(query, null, limit);
             List<MailMessage> messages = new ArrayList<>();
             Document doc = col.getFirstDocument();
             while (doc != null && messages.size() < limit) {
