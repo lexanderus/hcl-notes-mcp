@@ -1,0 +1,18 @@
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v3.4.0)
+
+2026-04-24T11:27:09.890+03:00  INFO 16380 --- [           main] com.hcl.notes.mcp.McpServerApplication   : Starting McpServerApplication v1.0.0 using Java 21.0.10 with PID 16380 (D:\Alex\Claude\hcl-notes-mcp\target\hcl-notes-mcp-1.0.0.jar started by ashevelev in D:\3)
+2026-04-24T11:27:09.895+03:00  INFO 16380 --- [           main] com.hcl.notes.mcp.McpServerApplication   : No active profile set, falling back to 1 default profile: "default"
+2026-04-24T11:27:12.142+03:00  INFO 16380 --- [           main] o.s.a.m.s.a.McpServerAutoConfiguration   : Enable tools capabilities, notification: true
+2026-04-24T11:27:12.331+03:00  INFO 16380 --- [           main] o.s.a.m.s.a.McpServerAutoConfiguration   : Registered tools: 15
+2026-04-24T11:27:12.333+03:00  INFO 16380 --- [           main] o.s.a.m.s.a.McpServerAutoConfiguration   : Enable resources capabilities, notification: true
+2026-04-24T11:27:12.335+03:00  INFO 16380 --- [           main] o.s.a.m.s.a.McpServerAutoConfiguration   : Enable prompts capabilities, notification: true
+2026-04-24T11:27:12.338+03:00  INFO 16380 --- [           main] o.s.a.m.s.a.McpServerAutoConfiguration   : Enable completions capabilities
+2026-04-24T11:27:12.794+03:00  INFO 16380 --- [           main] com.hcl.notes.mcp.McpServerApplication   : Started McpServerApplication in 4.197 seconds (process running for 5.177)

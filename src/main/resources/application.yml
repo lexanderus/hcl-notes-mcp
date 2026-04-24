@@ -1,9 +1,9 @@
 notes:
   connection:
-    mode: REMOTE
+    mode: LOCAL
     server: eumail/iba
-    username: ${NOTES_USERNAME}
-    password: ${NOTES_PASSWORD}
+    username: ${NOTES_USERNAME:}
+    password: ${NOTES_PASSWORD:}
     pool-size: 5
     timeout-ms: 30000
   tools:

@@ -42,11 +42,13 @@ public class DatabaseTools {
     }
 
     @Tool(description = "Get a specific Notes document by UNID.")
-    public Object notesGetDocument(
+    public Map<String, Object> notesGetDocument(
             @ToolParam(description = "databasePath in format server!!path") String databasePath,
             @ToolParam(description = "Document UNID") String unid) {
         var doc = service.getDocument(databasePath, unid);
-        return doc != null ? doc : Map.of("error", "Document not found: " + unid);
+        if (doc == null) return Map.of("error", "Document not found: " + unid);
+        return Map.of("unid", doc.unid(), "created", String.valueOf(doc.created()),
+                "modified", String.valueOf(doc.modified()), "fields", doc.fields());
     }
 
     @Tool(description = "Full-text search in a Notes database.")
