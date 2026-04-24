@@ -9,5 +9,5 @@ public interface View {
     Document getPrevDocument(Document doc) throws NotesException;
     ViewEntryCollection getAllEntries() throws NotesException;
     ViewEntryCollection getAllEntriesByKey(Object key, boolean exactMatch) throws NotesException;
-    DocumentCollection FTSearch(String query, int maxDocs) throws NotesException;
+    int FTSearch(String query, int maxDocs) throws NotesException;
 }

@@ -20,14 +20,18 @@ public class NotesConnectionFactory {
 
     private Session createSession() {
         try {
-            NotesThread.sinitThread();
             return switch (config.getMode()) {
                 case REMOTE -> NotesFactory.createSession(
                         config.getServer(), config.getUsername(), config.getPassword());
-                case LOCAL -> NotesFactory.createSession();
+                case LOCAL -> {
+                    NotesThread.sinitThread();
+                    yield NotesFactory.createSession();
+                }
             };
         } catch (NotesException e) {
-            NotesThread.stermThread();
+            if (config.getMode() == ConnectionMode.LOCAL) {
+                NotesThread.stermThread();
+            }
             throw new NotesOperationException("Failed to create Notes session", e);
         }
     }

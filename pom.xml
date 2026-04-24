@@ -46,6 +46,14 @@
             <version>14.0</version>
         </dependency>
 
+        <!-- CORBA API — required by NCSO.jar (NotesException extends UserException);
+             removed from JDK in Java 9, restored via GlassFish standalone artifact -->
+        <dependency>
+            <groupId>org.glassfish.corba</groupId>
+            <artifactId>glassfish-corba-omgapi</artifactId>
+            <version>4.2.4</version>
+        </dependency>
+
         <!-- Test -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

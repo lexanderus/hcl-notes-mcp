@@ -55,14 +55,22 @@ public class MailAdapter {
             Database mailDb = getMailDatabase(session);
             String viewName = folder != null ? folder : "($Inbox)";
             View view = mailDb.getView(viewName);
-            DocumentCollection col = view != null
-                    ? view.FTSearch(query, limit)
-                    : mailDb.search(query, null, limit);
             List<MailMessage> messages = new ArrayList<>();
-            Document doc = col.getFirstDocument();
-            while (doc != null && messages.size() < limit) {
-                messages.add(toMailMessage(doc));
-                doc = col.getNextDocument(doc);
+            if (view != null) {
+                // FTSearch modifies the view in-place and returns match count
+                view.FTSearch(query, limit);
+                Document doc = view.getFirstDocument();
+                while (doc != null && messages.size() < limit) {
+                    messages.add(toMailMessage(doc));
+                    doc = view.getNextDocument(doc);
+                }
+            } else {
+                DocumentCollection col = mailDb.search(query, null, limit);
+                Document doc = col.getFirstDocument();
+                while (doc != null && messages.size() < limit) {
+                    messages.add(toMailMessage(doc));
+                    doc = col.getNextDocument(doc);
+                }
             }
             return messages;
         });
