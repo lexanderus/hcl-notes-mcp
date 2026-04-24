@@ -107,11 +107,11 @@ public class DatabaseAdapter {
         });
     }
 
-    public int countSearchResults(String databasePath, String query) {
+    public long countSearchResults(String databasePath, String query) {
         String[] parts = parsePath(databasePath);
         return pool.withSession(session -> {
             Database db = openDb(session, parts);
-            return db.search(query, null, 0).getCount();
+            return (long) db.search(query, null, 0).getCount();
         });
     }
 
