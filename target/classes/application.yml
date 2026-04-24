@@ -1,0 +1,20 @@
+notes:
+  connection:
+    mode: REMOTE
+    server: domino.company.com
+    username: user@company.com
+    password: ${NOTES_PASSWORD:changeme}
+    pool-size: 5
+    timeout-ms: 30000
+  tools:
+    delete-enabled: true
+
+server:
+  port: 8080
+
+spring:
+  ai:
+    mcp:
+      server:
+        name: hcl-notes-mcp
+        version: 1.0.0

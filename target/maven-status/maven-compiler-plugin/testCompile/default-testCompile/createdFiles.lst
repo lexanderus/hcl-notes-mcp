@@ -1,0 +1,7 @@
+com\hcl\notes\mcp\McpContextTest.class
+com\hcl\notes\mcp\service\DatabaseServiceTest.class
+com\hcl\notes\mcp\model\ModelSerializationTest.class
+com\hcl\notes\mcp\service\MailServiceTest.class
+com\hcl\notes\mcp\adapter\DatabaseAdapterTest.class
+com\hcl\notes\mcp\service\CalendarServiceTest.class
+com\hcl\notes\mcp\connection\NotesSessionPoolTest.class

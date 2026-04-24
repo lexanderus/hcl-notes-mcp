@@ -36,7 +36,7 @@
         <!-- MCP Server (SSE/HTTP transport) -->
         <dependency>
             <groupId>org.springframework.ai</groupId>
-            <artifactId>spring-ai-mcp-server-webflux-spring-boot-starter</artifactId>
+            <artifactId>spring-ai-starter-mcp-server-webflux</artifactId>
         </dependency>
 
         <!-- HCL Notes Remote API (installed locally, see Prerequisites) -->
