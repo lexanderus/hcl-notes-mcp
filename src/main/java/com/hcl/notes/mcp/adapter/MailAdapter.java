@@ -4,6 +4,7 @@ import com.hcl.notes.mcp.connection.NotesOperationException;
 import com.hcl.notes.mcp.connection.NotesSessionPool;
 import com.hcl.notes.mcp.model.MailMessage;
 import lotus.domino.*;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 import java.time.Instant;
 import java.util.*;
@@ -13,7 +14,7 @@ public class MailAdapter {
 
     private final NotesSessionPool pool;
 
-    public MailAdapter(NotesSessionPool pool) {
+    public MailAdapter(@Lazy NotesSessionPool pool) {
         this.pool = pool;
     }
 

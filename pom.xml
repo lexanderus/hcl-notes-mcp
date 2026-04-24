@@ -33,10 +33,10 @@
     </dependencyManagement>
 
     <dependencies>
-        <!-- MCP Server (SSE/HTTP transport) -->
+        <!-- MCP Server (stdio transport — runs as Claude Code subprocess) -->
         <dependency>
             <groupId>org.springframework.ai</groupId>
-            <artifactId>spring-ai-starter-mcp-server-webflux</artifactId>
+            <artifactId>spring-ai-starter-mcp-server</artifactId>
         </dependency>
 
         <!-- HCL Notes Remote API (installed locally, see Prerequisites) -->

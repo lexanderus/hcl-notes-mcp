@@ -3,6 +3,7 @@ package com.hcl.notes.mcp.adapter;
 import com.hcl.notes.mcp.connection.NotesSessionPool;
 import com.hcl.notes.mcp.model.NotesTask;
 import lotus.domino.*;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -13,7 +14,7 @@ public class TaskAdapter {
 
     private final NotesSessionPool pool;
 
-    public TaskAdapter(NotesSessionPool pool) {
+    public TaskAdapter(@Lazy NotesSessionPool pool) {
         this.pool = pool;
     }
 
