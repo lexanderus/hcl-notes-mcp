@@ -68,6 +68,18 @@ src/main/java/com/hcl/notes/mcp/
   model/       — MailMessage, CalendarEvent, NotesTask, NotesDocument
 ```
 
+## Git push
+
+Ветка `master` — первый push требует установки upstream:
+
+```bash
+git push --set-upstream origin master
+```
+
+Последующие пуши — просто `git push`.
+
+Remote: `https://github.com/lexanderus/hcl-notes-mcp.git`
+
 ## Сборка JAR
 
 **ВАЖНО**: Не пересобирать fat JAR через `jar -cfm` — это сломает Spring Boot (переупакует вложенные JAR с компрессией). Правильный способ:
