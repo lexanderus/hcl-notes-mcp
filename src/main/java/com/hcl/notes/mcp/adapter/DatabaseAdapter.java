@@ -55,13 +55,23 @@ public class DatabaseAdapter {
                     ? view.getAllEntriesByKey(filter, true)
                     : view.getAllEntries();
             List<NotesDocument> docs = new ArrayList<>();
-            ViewEntry entry = col.getNthEntry(offset + 1);
+            // Skip offset entries (including category entries)
+            int skipped = 0;
+            ViewEntry entry = col.getFirstEntry();
+            while (entry != null && skipped < offset) {
+                if (entry.isDocument()) skipped++;
+                entry = col.getNextEntry(entry);
+            }
             int count = 0;
             while (entry != null && count < limit) {
-                Document doc = entry.getDocument();
-                docs.add(toModel(doc));
+                if (entry.isDocument()) {
+                    Document doc = entry.getDocument();
+                    if (doc != null) {
+                        docs.add(toModel(doc));
+                        count++;
+                    }
+                }
                 entry = col.getNextEntry(entry);
-                count++;
             }
             return docs;
         });
