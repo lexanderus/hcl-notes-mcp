@@ -3,7 +3,6 @@ package com.hcl.notes.mcp.adapter;
 import com.hcl.notes.mcp.connection.NotesSessionPool;
 import com.hcl.notes.mcp.model.NotesTask;
 import lotus.domino.*;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -14,7 +13,7 @@ public class TaskAdapter {
 
     private final NotesSessionPool pool;
 
-    public TaskAdapter(@Lazy NotesSessionPool pool) {
+    public TaskAdapter(NotesSessionPool pool) {
         this.pool = pool;
     }
 
@@ -61,9 +60,16 @@ public class TaskAdapter {
         String mailFile = session.getEnvironmentString("MailFile", true);
         String mailServer = session.getEnvironmentString("MailServer", true);
         Database db = session.getDatabase(mailServer, mailFile);
-        if (db == null || !db.isOpen()) {
+        if (db == null) {
             throw new com.hcl.notes.mcp.connection.NotesOperationException(
-                    "Cannot open mail database for tasks", null);
+                    "Cannot get mail database for tasks", null);
+        }
+        if (!db.isOpen()) {
+            db.open();
+        }
+        if (!db.isOpen()) {
+            throw new com.hcl.notes.mcp.connection.NotesOperationException(
+                    "Cannot open mail database for tasks: " + mailServer + "!!" + mailFile, null);
         }
         return db;
     }

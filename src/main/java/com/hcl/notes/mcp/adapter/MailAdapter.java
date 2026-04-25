@@ -4,7 +4,6 @@ import com.hcl.notes.mcp.connection.NotesOperationException;
 import com.hcl.notes.mcp.connection.NotesSessionPool;
 import com.hcl.notes.mcp.model.MailMessage;
 import lotus.domino.*;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 import java.time.Instant;
 import java.util.*;
@@ -14,7 +13,7 @@ public class MailAdapter {
 
     private final NotesSessionPool pool;
 
-    public MailAdapter(@Lazy NotesSessionPool pool) {
+    public MailAdapter(NotesSessionPool pool) {
         this.pool = pool;
     }
 
@@ -91,8 +90,15 @@ public class MailAdapter {
         String mailFile = session.getEnvironmentString("MailFile", true);
         String mailServer = session.getEnvironmentString("MailServer", true);
         Database db = session.getDatabase(mailServer, mailFile);
-        if (db == null || !db.isOpen()) {
-            throw new NotesOperationException("Cannot open mail database", null);
+        if (db == null) {
+            throw new NotesOperationException("Cannot get mail database", null);
+        }
+        if (!db.isOpen()) {
+            db.open();
+        }
+        if (!db.isOpen()) {
+            throw new NotesOperationException("Cannot open mail database: "
+                    + mailServer + "!!" + mailFile, null);
         }
         return db;
     }

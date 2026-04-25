@@ -4,7 +4,6 @@ import com.hcl.notes.mcp.connection.NotesOperationException;
 import com.hcl.notes.mcp.connection.NotesSessionPool;
 import com.hcl.notes.mcp.model.CalendarEvent;
 import lotus.domino.*;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 import java.time.Instant;
 import java.util.*;
@@ -14,7 +13,7 @@ public class CalendarAdapter {
 
     private final NotesSessionPool pool;
 
-    public CalendarAdapter(@Lazy NotesSessionPool pool) {
+    public CalendarAdapter(NotesSessionPool pool) {
         this.pool = pool;
     }
 
@@ -74,8 +73,15 @@ public class CalendarAdapter {
         String mailFile = session.getEnvironmentString("MailFile", true);
         String mailServer = session.getEnvironmentString("MailServer", true);
         Database db = session.getDatabase(mailServer, mailFile);
-        if (db == null || !db.isOpen()) {
-            throw new NotesOperationException("Cannot open mail database for calendar", null);
+        if (db == null) {
+            throw new NotesOperationException("Cannot get mail database for calendar", null);
+        }
+        if (!db.isOpen()) {
+            db.open();
+        }
+        if (!db.isOpen()) {
+            throw new NotesOperationException("Cannot open mail database for calendar: "
+                    + mailServer + "!!" + mailFile, null);
         }
         return db;
     }

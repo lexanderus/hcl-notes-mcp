@@ -4,7 +4,6 @@ import com.hcl.notes.mcp.connection.NotesOperationException;
 import com.hcl.notes.mcp.connection.NotesSessionPool;
 import com.hcl.notes.mcp.model.NotesDocument;
 import lotus.domino.*;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 import java.time.Instant;
 import java.util.*;
@@ -14,7 +13,7 @@ public class DatabaseAdapter {
 
     private final NotesSessionPool pool;
 
-    public DatabaseAdapter(@Lazy NotesSessionPool pool) {
+    public DatabaseAdapter(NotesSessionPool pool) {
         this.pool = pool;
     }
 
@@ -160,7 +159,14 @@ public class DatabaseAdapter {
 
     private Database openDb(Session session, String[] parts) throws NotesException {
         Database db = session.getDatabase(parts[0], parts[1]);
-        if (db == null || !db.isOpen()) {
+        if (db == null) {
+            throw new NotesOperationException(
+                    "Database not found: " + parts[0] + "!!" + parts[1], null);
+        }
+        if (!db.isOpen()) {
+            db.open();
+        }
+        if (!db.isOpen()) {
             throw new NotesOperationException(
                     "Database not accessible: " + parts[0] + "!!" + parts[1], null);
         }

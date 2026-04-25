@@ -9,7 +9,15 @@ notes:
   tools:
     delete-enabled: true
 
+logging:
+  file:
+    name: D:/Alex/Claude/hcl-notes-mcp/hcl-notes-mcp.log
+  threshold:
+    console: "OFF"
+
 spring:
+  main:
+    banner-mode: "off"
   ai:
     mcp:
       server:

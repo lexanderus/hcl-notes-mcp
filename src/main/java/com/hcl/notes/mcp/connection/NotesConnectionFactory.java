@@ -14,25 +14,37 @@ public class NotesConnectionFactory {
     }
 
     public NotesSessionPool createPool() {
-        return new NotesSessionPool(this::createSession,
+        Runnable cleanup = config.getMode() == ConnectionMode.LOCAL
+                ? () -> { try { NotesThread.stermThread(); } catch (Exception ignore) {} }
+                : () -> {};
+        return new NotesSessionPool(this::createSession, cleanup,
                 config.getPoolSize(), config.getTimeoutMs());
     }
 
     private Session createSession() {
         try {
-            return switch (config.getMode()) {
-                case REMOTE -> NotesFactory.createSession(
+            if (config.getMode() == ConnectionMode.REMOTE) {
+                return NotesFactory.createSession(
                         config.getServer(), config.getUsername(), config.getPassword());
-                case LOCAL -> {
-                    NotesThread.sinitThread();
-                    yield NotesFactory.createSession();
+            } else {
+                // LOCAL mode — opens user.id with password (Notes client must be CLOSED)
+                NotesThread.sinitThread();
+                String pwd = config.getPassword();
+                if (pwd != null && !pwd.isEmpty()) {
+                    return NotesFactory.createSession((String) null, (String) null, pwd);
                 }
-            };
+                return NotesFactory.createSession();
+            }
         } catch (NotesException e) {
             if (config.getMode() == ConnectionMode.LOCAL) {
                 NotesThread.stermThread();
             }
-            throw new NotesOperationException("Failed to create Notes session", e);
+            throw new NotesOperationException(
+                "Failed to create Notes session [id=" + e.id + ", text=" + e.text
+                + ", mode=" + config.getMode()
+                + ", server=" + config.getServer()
+                + ", idFile=" + config.getIdFile()
+                + ", user=" + config.getUsername() + "]", e);
         }
     }
 }

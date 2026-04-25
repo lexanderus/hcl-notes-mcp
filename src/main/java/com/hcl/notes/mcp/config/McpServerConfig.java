@@ -15,7 +15,6 @@ import org.springframework.context.annotation.Lazy;
 public class McpServerConfig {
 
     @Bean
-    @Lazy
     public NotesSessionPool notesSessionPool(NotesConnectionFactory factory) {
         return factory.createPool();
     }
