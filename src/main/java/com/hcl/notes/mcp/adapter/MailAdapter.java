@@ -1,33 +1,30 @@
 package com.hcl.notes.mcp.adapter;
 
-import com.hcl.notes.mcp.connection.NotesOperationException;
 import com.hcl.notes.mcp.connection.NotesSessionPool;
 import com.hcl.notes.mcp.model.MailMessage;
 import lotus.domino.*;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import java.time.Instant;
 import java.util.*;
 
-import static com.hcl.notes.mcp.adapter.DatabaseAdapter.recycle;
+import static com.hcl.notes.mcp.adapter.NotesUtils.recycle;
 
 @Component
 public class MailAdapter {
 
-    private static final Logger log = LoggerFactory.getLogger(MailAdapter.class);
-
     private final NotesSessionPool pool;
+    private final MailDatabaseLocator mailDb;
 
-    public MailAdapter(NotesSessionPool pool) {
-        this.pool = pool;
+    public MailAdapter(NotesSessionPool pool, MailDatabaseLocator mailDb) {
+        this.pool   = pool;
+        this.mailDb = mailDb;
     }
 
     public List<MailMessage> getInboxMessages(int count) {
         return pool.withSession(session -> {
-            Database mailDb = getMailDatabase(session);
+            Database db = mailDb.openMailDatabase(session, "mail");
             try {
-                View inbox = mailDb.getView("($Inbox)");
+                View inbox = db.getView("($Inbox)");
                 if (inbox == null) return Collections.emptyList();
                 List<MailMessage> messages = new ArrayList<>();
                 try {
@@ -46,16 +43,16 @@ public class MailAdapter {
                 }
                 return messages;
             } finally {
-                recycle(mailDb);
+                recycle(db);
             }
         });
     }
 
     public boolean sendMail(List<String> to, String subject, String body, List<String> cc) {
         return pool.withSession(session -> {
-            Database mailDb = getMailDatabase(session);
+            Database db = mailDb.openMailDatabase(session, "mail");
             try {
-                Document doc = mailDb.createDocument();
+                Document doc = db.createDocument();
                 try {
                     doc.replaceItemValue("Form", "Memo");
                     doc.replaceItemValue("SendTo", new Vector<>(to));
@@ -70,17 +67,17 @@ public class MailAdapter {
                     recycle(doc);
                 }
             } finally {
-                recycle(mailDb);
+                recycle(db);
             }
         });
     }
 
     public List<MailMessage> searchMail(String query, String folder, int limit) {
         return pool.withSession(session -> {
-            Database mailDb = getMailDatabase(session);
+            Database db = mailDb.openMailDatabase(session, "mail");
             try {
                 String viewName = folder != null ? folder : "($Inbox)";
-                View view = mailDb.getView(viewName);
+                View view = db.getView(viewName);
                 List<MailMessage> messages = new ArrayList<>();
                 if (view != null) {
                     try {
@@ -97,8 +94,7 @@ public class MailAdapter {
                         recycle(view);
                     }
                 } else {
-                    // Fallback: formula search (no FT index on this folder)
-                    DocumentCollection col = mailDb.FTSearch(query, limit);
+                    DocumentCollection col = db.FTSearch(query, limit);
                     try {
                         Document doc = col.getFirstDocument();
                         while (doc != null && messages.size() < limit) {
@@ -114,20 +110,19 @@ public class MailAdapter {
                 }
                 return messages;
             } finally {
-                recycle(mailDb);
+                recycle(db);
             }
         });
     }
 
     public boolean moveToFolder(String unid, String folder) {
         return pool.withSession(session -> {
-            Database mailDb = getMailDatabase(session);
+            Database db = mailDb.openMailDatabase(session, "mail");
             try {
-                Document doc = mailDb.getDocumentByUNID(unid);
+                Document doc = db.getDocumentByUNID(unid);
                 if (doc == null) return false;
                 try {
                     doc.putInFolder(folder);
-                    // Only remove from inbox if we're moving to a different folder
                     if (!"($Inbox)".equals(folder)) {
                         doc.removeFromFolder("($Inbox)");
                     }
@@ -136,27 +131,9 @@ public class MailAdapter {
                     recycle(doc);
                 }
             } finally {
-                recycle(mailDb);
+                recycle(db);
             }
         });
-    }
-
-    private Database getMailDatabase(Session session) throws NotesException {
-        String mailFile   = session.getEnvironmentString("MailFile", true);
-        String mailServer = session.getEnvironmentString("MailServer", true);
-        Database db = session.getDatabase(mailServer, mailFile);
-        if (db == null) {
-            throw new NotesOperationException("Cannot get mail database", null);
-        }
-        if (!db.isOpen()) {
-            db.open();
-        }
-        if (!db.isOpen()) {
-            recycle(db);
-            throw new NotesOperationException(
-                    "Cannot open mail database: " + mailServer + "!!" + mailFile, null);
-        }
-        return db;
     }
 
     private MailMessage toMailMessage(Document doc) throws NotesException {

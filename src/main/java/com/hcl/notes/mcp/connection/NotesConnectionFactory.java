@@ -39,8 +39,7 @@ public class NotesConnectionFactory {
             return NotesFactory.createSession();
         } catch (NotesException e) {
             throw new NotesOperationException(
-                "Failed to create Notes LOCAL session [id=" + e.id + ", text=" + e.text
-                + ", idFile=" + config.getIdFile() + "]", e);
+                "Failed to create Notes LOCAL session [id=" + e.id + ", text=" + e.text + "]", e);
         }
     }
 }

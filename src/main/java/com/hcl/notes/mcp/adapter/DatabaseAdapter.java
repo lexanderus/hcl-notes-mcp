@@ -4,16 +4,14 @@ import com.hcl.notes.mcp.connection.NotesOperationException;
 import com.hcl.notes.mcp.connection.NotesSessionPool;
 import com.hcl.notes.mcp.model.NotesDocument;
 import lotus.domino.*;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import java.time.Instant;
 import java.util.*;
 
+import static com.hcl.notes.mcp.adapter.NotesUtils.recycle;
+
 @Component
 public class DatabaseAdapter {
-
-    private static final Logger log = LoggerFactory.getLogger(DatabaseAdapter.class);
 
     private final NotesSessionPool pool;
 
@@ -258,22 +256,13 @@ public class DatabaseAdapter {
         return pool.withSession(session -> {
             Database db = openDb(session, parts);
             try {
-                // Count pass (capped)
-                DocumentCollection countCol = db.search(query, null, maxCountDocs);
-                long total;
+                // Single scan: fetch up to maxCountDocs, count + page in one pass
+                DocumentCollection col = db.FTSearch(query, maxCountDocs);
                 try {
-                    total = (long) countCol.getCount();
-                } finally {
-                    recycle(countCol);
-                }
+                    long total = (long) col.getCount();
+                    if (total == 0) return new PagedSearchResult(List.of(), 0);
 
-                if (total == 0) return new PagedSearchResult(List.of(), 0);
-
-                // Fetch pass with offset+limit
-                int fetchLimit = limit + offset;
-                DocumentCollection col = db.search(query, null, fetchLimit);
-                List<NotesDocument> docs = new ArrayList<>();
-                try {
+                    List<NotesDocument> docs = new ArrayList<>();
                     Document doc = col.getNthDocument(offset + 1);
                     int count = 0;
                     while (doc != null && count < limit) {
@@ -284,10 +273,10 @@ public class DatabaseAdapter {
                         count++;
                     }
                     if (doc != null) recycle(doc);
+                    return new PagedSearchResult(docs, total);
                 } finally {
                     recycle(col);
                 }
-                return new PagedSearchResult(docs, total);
             } finally {
                 recycle(db);
             }
@@ -300,8 +289,7 @@ public class DatabaseAdapter {
         return pool.withSession(session -> {
             Database db = openDb(session, parts);
             try {
-                DocumentCollection col = db.search(query, null, limit + offset);
-                if (col == null) return List.of();
+                DocumentCollection col = db.FTSearch(query, limit + offset);
                 List<NotesDocument> docs = new ArrayList<>();
                 try {
                     Document doc = col.getNthDocument(offset + 1);
@@ -329,7 +317,7 @@ public class DatabaseAdapter {
         return pool.withSession(session -> {
             Database db = openDb(session, parts);
             try {
-                DocumentCollection col = db.search(query, null, maxDocs);
+                DocumentCollection col = db.FTSearch(query, maxDocs);
                 try {
                     return (long) col.getCount();
                 } finally {
@@ -402,9 +390,14 @@ public class DatabaseAdapter {
     public static String[] parsePath(String databasePath) {
         if (databasePath == null || !databasePath.contains("!!")) {
             throw new IllegalArgumentException(
-                    "Invalid databasePath format. Expected 'server!!path', got: " + databasePath);
+                    "Invalid databasePath — expected 'server!!path', got: " + databasePath);
         }
-        return databasePath.split("!!", 2);
+        String[] parts = databasePath.split("!!", 2);
+        if (parts[1] == null || parts[1].isBlank()) {
+            throw new IllegalArgumentException(
+                    "Invalid databasePath — path part is empty in: " + databasePath);
+        }
+        return parts;
     }
 
     private Database openDb(Session session, String[] parts) throws NotesException {
@@ -473,9 +466,4 @@ public class DatabaseAdapter {
         }
     }
 
-    /** Recycle any Domino object, swallowing exceptions (object may already be recycled). */
-    public static void recycle(lotus.domino.Base obj) {
-        if (obj == null) return;
-        try { obj.recycle(); } catch (Exception ignored) {}
-    }
 }
