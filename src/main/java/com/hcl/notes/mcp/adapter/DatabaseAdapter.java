@@ -4,12 +4,16 @@ import com.hcl.notes.mcp.connection.NotesOperationException;
 import com.hcl.notes.mcp.connection.NotesSessionPool;
 import com.hcl.notes.mcp.model.NotesDocument;
 import lotus.domino.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import java.time.Instant;
 import java.util.*;
 
 @Component
 public class DatabaseAdapter {
+
+    private static final Logger log = LoggerFactory.getLogger(DatabaseAdapter.class);
 
     private final NotesSessionPool pool;
 
@@ -24,9 +28,14 @@ public class DatabaseAdapter {
         return pool.withSession(session -> {
             Database db = session.getDatabase(parts[0], parts[1]);
             if (db == null || !db.isOpen()) {
+                if (db != null) recycle(db);
                 throw new NotesOperationException("Database not found: " + databasePath, null);
             }
-            return new OpenResult(databasePath, db.getTitle());
+            try {
+                return new OpenResult(databasePath, db.getTitle());
+            } finally {
+                recycle(db);
+            }
         });
     }
 
@@ -34,13 +43,25 @@ public class DatabaseAdapter {
         String[] parts = parsePath(databasePath);
         return pool.withSession(session -> {
             Database db = openDb(session, parts);
-            Vector<?> views = db.getViews();
-            List<Map<String, Object>> result = new ArrayList<>();
-            for (Object v : views) {
-                View view = (View) v;
-                result.add(Map.of("name", view.getName(), "entryCount", view.getEntryCount()));
+            try {
+                Vector<?> views = db.getViews();
+                List<Map<String, Object>> result = new ArrayList<>();
+                try {
+                    for (Object v : views) {
+                        View view = (View) v;
+                        try {
+                            result.add(Map.of("name", view.getName(), "entryCount", view.getEntryCount()));
+                        } finally {
+                            recycle(view);
+                        }
+                    }
+                } catch (NotesException e) {
+                    throw new NotesOperationException("Failed to list views: " + e.text, e);
+                }
+                return result;
+            } finally {
+                recycle(db);
             }
-            return result;
         });
     }
 
@@ -49,31 +70,65 @@ public class DatabaseAdapter {
         String[] parts = parsePath(databasePath);
         return pool.withSession(session -> {
             Database db = openDb(session, parts);
-            View view = db.getView(viewName);
-            if (view == null) throw new NotesOperationException("View not found: " + viewName, null);
-            ViewEntryCollection col = filter != null
-                    ? view.getAllEntriesByKey(filter, true)
-                    : view.getAllEntries();
-            List<NotesDocument> docs = new ArrayList<>();
-            // Skip offset entries (including category entries)
-            int skipped = 0;
-            ViewEntry entry = col.getFirstEntry();
-            while (entry != null && skipped < offset) {
-                if (entry.isDocument()) skipped++;
-                entry = col.getNextEntry(entry);
-            }
-            int count = 0;
-            while (entry != null && count < limit) {
-                if (entry.isDocument()) {
-                    Document doc = entry.getDocument();
-                    if (doc != null) {
-                        docs.add(toModel(doc));
-                        count++;
+            try {
+                View view = db.getView(viewName);
+                if (view == null) throw new NotesOperationException("View not found: " + viewName, null);
+                List<NotesDocument> docs = new ArrayList<>();
+                try {
+                    if (filter != null) {
+                        ViewEntryCollection col = view.getAllEntriesByKey(filter, true);
+                        try {
+                            ViewEntry ve = col.getFirstEntry();
+                            int skipped = 0;
+                            while (ve != null && skipped < offset) {
+                                ViewEntry current = ve;
+                                ve = col.getNextEntry(ve);
+                                if (current.isDocument()) skipped++;
+                                recycle(current);
+                            }
+                            int count = 0;
+                            while (ve != null && count < limit) {
+                                ViewEntry current = ve;
+                                ve = col.getNextEntry(ve);
+                                if (current.isDocument()) {
+                                    Document doc = current.getDocument();
+                                    if (doc != null) {
+                                        try { docs.add(toModel(doc)); count++; }
+                                        finally { recycle(doc); }
+                                    }
+                                }
+                                recycle(current);
+                            }
+                            if (ve != null) recycle(ve);
+                        } finally {
+                            recycle(col);
+                        }
+                    } else {
+                        Document doc = view.getFirstDocument();
+                        int skipped = 0;
+                        while (doc != null && skipped < offset) {
+                            Document next = view.getNextDocument(doc);
+                            recycle(doc);
+                            doc = next;
+                            skipped++;
+                        }
+                        int count = 0;
+                        while (doc != null && count < limit) {
+                            docs.add(toModel(doc));
+                            Document next = view.getNextDocument(doc);
+                            recycle(doc);
+                            doc = next;
+                            count++;
+                        }
+                        if (doc != null) recycle(doc);
                     }
+                } finally {
+                    recycle(view);
                 }
-                entry = col.getNextEntry(entry);
+                return docs;
+            } finally {
+                recycle(db);
             }
-            return docs;
         });
     }
 
@@ -81,11 +136,25 @@ public class DatabaseAdapter {
         String[] parts = parsePath(databasePath);
         return pool.withSession(session -> {
             Database db = openDb(session, parts);
-            View view = db.getView(viewName);
-            if (view == null) throw new NotesOperationException("View not found: " + viewName, null);
-            return filter != null
-                    ? (long) view.getAllEntriesByKey(filter, true).getCount()
-                    : (long) view.getAllEntries().getCount();
+            try {
+                View view = db.getView(viewName);
+                if (view == null) throw new NotesOperationException("View not found: " + viewName, null);
+                try {
+                    if (filter != null) {
+                        ViewEntryCollection col = view.getAllEntriesByKey(filter, true);
+                        try {
+                            return (long) col.getCount();
+                        } finally {
+                            recycle(col);
+                        }
+                    }
+                    return (long) view.getEntryCount();
+                } finally {
+                    recycle(view);
+                }
+            } finally {
+                recycle(db);
+            }
         });
     }
 
@@ -93,9 +162,135 @@ public class DatabaseAdapter {
         String[] parts = parsePath(databasePath);
         return pool.withSession(session -> {
             Database db = openDb(session, parts);
-            Document doc = db.getDocumentByUNID(unid);
-            if (doc == null) return null;
-            return toModel(doc);
+            try {
+                Document doc = db.getDocumentByUNID(unid);
+                if (doc == null) return null;
+                try {
+                    return toModel(doc);
+                } finally {
+                    recycle(doc);
+                }
+            } finally {
+                recycle(db);
+            }
+        });
+    }
+
+    /** Combined get + count in one session — avoids 2x session roundtrip. */
+    public record PagedViewResult(List<NotesDocument> entries, long total) {}
+
+    public PagedViewResult getViewEntriesWithCount(String databasePath, String viewName,
+                                                    String filter, int limit, int offset) {
+        String[] parts = parsePath(databasePath);
+        return pool.withSession(session -> {
+            Database db = openDb(session, parts);
+            try {
+                View view = db.getView(viewName);
+                if (view == null) throw new NotesOperationException("View not found: " + viewName, null);
+                List<NotesDocument> docs = new ArrayList<>();
+                long total = 0;
+                try {
+                    if (filter != null) {
+                        ViewEntryCollection col = view.getAllEntriesByKey(filter, true);
+                        try {
+                            total = (long) col.getCount();
+                            ViewEntry ve = col.getFirstEntry();
+                            int skipped = 0;
+                            while (ve != null && skipped < offset) {
+                                ViewEntry current = ve;
+                                ve = col.getNextEntry(ve);
+                                if (current.isDocument()) skipped++;
+                                recycle(current);
+                            }
+                            int count = 0;
+                            while (ve != null && count < limit) {
+                                ViewEntry current = ve;
+                                ve = col.getNextEntry(ve);
+                                if (current.isDocument()) {
+                                    Document doc = current.getDocument();
+                                    if (doc != null) {
+                                        try { docs.add(toModel(doc)); count++; }
+                                        finally { recycle(doc); }
+                                    }
+                                }
+                                recycle(current);
+                            }
+                            if (ve != null) recycle(ve);
+                        } finally {
+                            recycle(col);
+                        }
+                    } else {
+                        total = (long) view.getEntryCount();
+                        Document doc = view.getFirstDocument();
+                        int skipped = 0;
+                        while (doc != null && skipped < offset) {
+                            Document next = view.getNextDocument(doc);
+                            recycle(doc);
+                            doc = next;
+                            skipped++;
+                        }
+                        int count = 0;
+                        while (doc != null && count < limit) {
+                            docs.add(toModel(doc));
+                            Document next = view.getNextDocument(doc);
+                            recycle(doc);
+                            doc = next;
+                            count++;
+                        }
+                        if (doc != null) recycle(doc);
+                    }
+                } finally {
+                    recycle(view);
+                }
+                return new PagedViewResult(docs, total);
+            } finally {
+                recycle(db);
+            }
+        });
+    }
+
+    /** Combined search + count in one session — avoids 2x session roundtrip. */
+    public record PagedSearchResult(List<NotesDocument> entries, long total) {}
+
+    public PagedSearchResult searchDocumentsWithCount(String databasePath, String query,
+                                                       int limit, int offset, int maxCountDocs) {
+        String[] parts = parsePath(databasePath);
+        return pool.withSession(session -> {
+            Database db = openDb(session, parts);
+            try {
+                // Count pass (capped)
+                DocumentCollection countCol = db.search(query, null, maxCountDocs);
+                long total;
+                try {
+                    total = (long) countCol.getCount();
+                } finally {
+                    recycle(countCol);
+                }
+
+                if (total == 0) return new PagedSearchResult(List.of(), 0);
+
+                // Fetch pass with offset+limit
+                int fetchLimit = limit + offset;
+                DocumentCollection col = db.search(query, null, fetchLimit);
+                List<NotesDocument> docs = new ArrayList<>();
+                try {
+                    Document doc = col.getNthDocument(offset + 1);
+                    int count = 0;
+                    while (doc != null && count < limit) {
+                        docs.add(toModel(doc));
+                        Document next = col.getNextDocument(doc);
+                        recycle(doc);
+                        doc = next;
+                        count++;
+                    }
+                    if (doc != null) recycle(doc);
+                } finally {
+                    recycle(col);
+                }
+                return new PagedSearchResult(docs, total);
+            } finally {
+                recycle(db);
+            }
         });
     }
 
@@ -104,24 +299,45 @@ public class DatabaseAdapter {
         String[] parts = parsePath(databasePath);
         return pool.withSession(session -> {
             Database db = openDb(session, parts);
-            DocumentCollection col = db.search(query, null, limit + offset);
-            List<NotesDocument> docs = new ArrayList<>();
-            Document doc = col.getNthDocument(offset + 1);
-            int count = 0;
-            while (doc != null && count < limit) {
-                docs.add(toModel(doc));
-                doc = col.getNextDocument(doc);
-                count++;
+            try {
+                DocumentCollection col = db.search(query, null, limit + offset);
+                if (col == null) return List.of();
+                List<NotesDocument> docs = new ArrayList<>();
+                try {
+                    Document doc = col.getNthDocument(offset + 1);
+                    int count = 0;
+                    while (doc != null && count < limit) {
+                        docs.add(toModel(doc));
+                        Document next = col.getNextDocument(doc);
+                        recycle(doc);
+                        doc = next;
+                        count++;
+                    }
+                    if (doc != null) recycle(doc);
+                } finally {
+                    recycle(col);
+                }
+                return docs;
+            } finally {
+                recycle(db);
             }
-            return docs;
         });
     }
 
-    public long countSearchResults(String databasePath, String query) {
+    public long countSearchResults(String databasePath, String query, int maxDocs) {
         String[] parts = parsePath(databasePath);
         return pool.withSession(session -> {
             Database db = openDb(session, parts);
-            return (long) db.search(query, null, 0).getCount();
+            try {
+                DocumentCollection col = db.search(query, null, maxDocs);
+                try {
+                    return (long) col.getCount();
+                } finally {
+                    recycle(col);
+                }
+            } finally {
+                recycle(db);
+            }
         });
     }
 
@@ -129,10 +345,18 @@ public class DatabaseAdapter {
         String[] parts = parsePath(databasePath);
         return pool.withSession(session -> {
             Database db = openDb(session, parts);
-            Document doc = db.createDocument();
-            setFields(doc, fields);
-            doc.save();
-            return doc.getUniversalID();
+            try {
+                Document doc = db.createDocument();
+                try {
+                    setFields(doc, fields);
+                    doc.save();
+                    return doc.getUniversalID();
+                } finally {
+                    recycle(doc);
+                }
+            } finally {
+                recycle(db);
+            }
         });
     }
 
@@ -140,11 +364,19 @@ public class DatabaseAdapter {
         String[] parts = parsePath(databasePath);
         return pool.withSession(session -> {
             Database db = openDb(session, parts);
-            Document doc = db.getDocumentByUNID(unid);
-            if (doc == null) throw new NotesOperationException("Document not found: " + unid, null);
-            setFields(doc, fields);
-            doc.save();
-            return doc.getUniversalID();
+            try {
+                Document doc = db.getDocumentByUNID(unid);
+                if (doc == null) throw new NotesOperationException("Document not found: " + unid, null);
+                try {
+                    setFields(doc, fields);
+                    doc.save();
+                    return doc.getUniversalID();
+                } finally {
+                    recycle(doc);
+                }
+            } finally {
+                recycle(db);
+            }
         });
     }
 
@@ -152,15 +384,23 @@ public class DatabaseAdapter {
         String[] parts = parsePath(databasePath);
         return pool.withSession(session -> {
             Database db = openDb(session, parts);
-            Document doc = db.getDocumentByUNID(unid);
-            if (doc == null) return false;
-            doc.remove(true);
-            return true;
+            try {
+                Document doc = db.getDocumentByUNID(unid);
+                if (doc == null) return false;
+                try {
+                    doc.remove(true);
+                    return true;
+                } finally {
+                    recycle(doc);
+                }
+            } finally {
+                recycle(db);
+            }
         });
     }
 
     public static String[] parsePath(String databasePath) {
-        if (!databasePath.contains("!!")) {
+        if (databasePath == null || !databasePath.contains("!!")) {
             throw new IllegalArgumentException(
                     "Invalid databasePath format. Expected 'server!!path', got: " + databasePath);
         }
@@ -177,6 +417,7 @@ public class DatabaseAdapter {
             db.open();
         }
         if (!db.isOpen()) {
+            recycle(db);
             throw new NotesOperationException(
                     "Database not accessible: " + parts[0] + "!!" + parts[1], null);
         }
@@ -194,18 +435,47 @@ public class DatabaseAdapter {
         Map<String, Object> fields = new LinkedHashMap<>();
         Vector<Item> items = doc.getItems();
         for (Item item : items) {
-            fields.put(item.getName(), item.getValues().size() == 1
-                    ? item.getValues().get(0) : item.getValues());
+            try {
+                String itemName = item.getName();
+                Vector<?> values = item.getValues();
+                if (values == null) continue;
+                List<Object> converted = new ArrayList<>(values.size());
+                for (Object v : values) {
+                    if (v instanceof DateTime dt) {
+                        try { converted.add(dt.toJavaDate().toInstant().toString()); }
+                        catch (Exception ignored) { converted.add(v.toString()); }
+                        // DateTime from getValues() is a copy — recycle it
+                        recycle(dt);
+                    } else {
+                        converted.add(v);
+                    }
+                }
+                fields.put(itemName, converted.size() == 1 ? converted.get(0) : converted);
+            } finally {
+                recycle(item);
+            }
         }
+
         DateTime created = doc.getCreated();
         DateTime modified = doc.getLastModified();
-        java.util.Date createdDate = (created != null) ? created.toJavaDate() : null;
-        java.util.Date modifiedDate = (modified != null) ? modified.toJavaDate() : null;
-        return new NotesDocument(
-                doc.getUniversalID(),
-                createdDate != null ? Instant.ofEpochMilli(createdDate.getTime()) : null,
-                modifiedDate != null ? Instant.ofEpochMilli(modifiedDate.getTime()) : null,
-                fields
-        );
+        try {
+            java.util.Date createdDate  = (created  != null) ? created.toJavaDate()  : null;
+            java.util.Date modifiedDate = (modified != null) ? modified.toJavaDate() : null;
+            return new NotesDocument(
+                    doc.getUniversalID(),
+                    createdDate  != null ? Instant.ofEpochMilli(createdDate.getTime())  : null,
+                    modifiedDate != null ? Instant.ofEpochMilli(modifiedDate.getTime()) : null,
+                    fields
+            );
+        } finally {
+            recycle(created);
+            recycle(modified);
+        }
+    }
+
+    /** Recycle any Domino object, swallowing exceptions (object may already be recycled). */
+    public static void recycle(lotus.domino.Base obj) {
+        if (obj == null) return;
+        try { obj.recycle(); } catch (Exception ignored) {}
     }
 }

@@ -24,13 +24,6 @@ public class NotesConnectionFactory {
         this.config = config;
     }
 
-    public NotesSessionPool createPool() {
-        return new NotesSessionPool(
-                this::createSession,
-                config.getPoolSize(),
-                config.getTimeoutMs());
-    }
-
     /**
      * Creates a Notes LOCAL JNI session on the calling thread.
      * The caller is responsible for having called NotesThread.sinitThread() beforehand

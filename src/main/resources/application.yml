@@ -2,7 +2,6 @@ notes:
   connection:
     mode: LOCAL
     password: ${NOTES_PASSWORD:}
-    pool-size: 5
     timeout-ms: 30000
   tools:
     delete-enabled: true

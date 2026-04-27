@@ -9,15 +9,12 @@ import org.springframework.stereotype.Component;
 public class NotesConnectionConfig {
     private String password;
     private String idFile;
-    private int poolSize = 5;
     private long timeoutMs = 30_000;
 
     public String getPassword() { return password; }
     public void setPassword(String password) { this.password = password; }
     public String getIdFile() { return idFile; }
     public void setIdFile(String idFile) { this.idFile = idFile; }
-    public int getPoolSize() { return poolSize; }
-    public void setPoolSize(int poolSize) { this.poolSize = poolSize; }
     public long getTimeoutMs() { return timeoutMs; }
     public void setTimeoutMs(long timeoutMs) { this.timeoutMs = timeoutMs; }
 }

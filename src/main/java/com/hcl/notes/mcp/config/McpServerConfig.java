@@ -1,5 +1,6 @@
 package com.hcl.notes.mcp.config;
 
+import com.hcl.notes.mcp.config.NotesConnectionConfig;
 import com.hcl.notes.mcp.connection.NotesConnectionFactory;
 import com.hcl.notes.mcp.connection.NotesSessionPool;
 import com.hcl.notes.mcp.tools.CalendarTools;
@@ -15,8 +16,8 @@ import org.springframework.context.annotation.Lazy;
 public class McpServerConfig {
 
     @Bean
-    public NotesSessionPool notesSessionPool(NotesConnectionFactory factory) {
-        return factory.createPool();
+    public NotesSessionPool notesSessionPool(NotesConnectionFactory factory, NotesConnectionConfig config) {
+        return new NotesSessionPool(factory::createSession, config.getTimeoutMs());
     }
 
     @Bean
