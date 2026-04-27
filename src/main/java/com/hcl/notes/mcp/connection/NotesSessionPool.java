@@ -29,11 +29,21 @@ public class NotesSessionPool {
     private final ExecutorService executor;
     private final Supplier<Session> sessionFactory;
     private final long timeoutMs;
+    private final Runnable threadInit;
+    private final Runnable threadTerm;
     private volatile Session session;
 
     public NotesSessionPool(Supplier<Session> sessionFactory, long timeoutMs) {
+        this(sessionFactory, timeoutMs, NotesThread::sinitThread, NotesThread::stermThread);
+    }
+
+    /** Package-private: allows unit tests to inject no-op thread init/term. */
+    NotesSessionPool(Supplier<Session> sessionFactory, long timeoutMs,
+                     Runnable threadInit, Runnable threadTerm) {
         this.sessionFactory = sessionFactory;
         this.timeoutMs = timeoutMs;
+        this.threadInit = threadInit;
+        this.threadTerm = threadTerm;
         this.executor = Executors.newSingleThreadExecutor(r -> {
             Thread t = new Thread(r, "notes-jni");
             t.setDaemon(false);
@@ -45,10 +55,15 @@ public class NotesSessionPool {
     private void initSession() {
         try {
             executor.submit(() -> {
-                NotesThread.sinitThread();
+                threadInit.run();
                 session = sessionFactory.get();
-                log.info("Notes session initialized on thread '{}': user={}",
-                        Thread.currentThread().getName(), session.getUserName());
+                try {
+                    log.info("Notes session initialized on thread '{}': user={}",
+                            Thread.currentThread().getName(), session.getUserName());
+                } catch (NotesException e) {
+                    log.info("Notes session initialized on thread '{}'",
+                            Thread.currentThread().getName());
+                }
             }).get(timeoutMs, TimeUnit.MILLISECONDS);
         } catch (TimeoutException e) {
             throw new NotesOperationException(
@@ -142,7 +157,7 @@ public class NotesSessionPool {
             } catch (Exception e) {
                 log.warn("Error recycling session on shutdown: {}", e.getMessage());
             } finally {
-                try { NotesThread.stermThread(); } catch (Exception ignore) {}
+                try { threadTerm.run(); } catch (Exception ignore) {}
             }
         });
         executor.shutdown();

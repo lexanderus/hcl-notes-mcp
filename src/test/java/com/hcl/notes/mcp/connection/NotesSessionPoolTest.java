@@ -21,7 +21,7 @@ class NotesSessionPoolTest {
     @Test
     void withSessionExecutesCallbackAndReturnsResult() {
         Session mockSession = mock(Session.class);
-        pool = new NotesSessionPool(() -> mockSession, 5000);
+        pool = new NotesSessionPool(() -> mockSession, 5000, () -> {}, () -> {});
 
         String result = pool.withSession(s -> "done");
 
@@ -31,7 +31,7 @@ class NotesSessionPoolTest {
     @Test
     void withSessionReceivesTheSameSessionInstance() {
         Session mockSession = mock(Session.class);
-        pool = new NotesSessionPool(() -> mockSession, 5000);
+        pool = new NotesSessionPool(() -> mockSession, 5000, () -> {}, () -> {});
 
         pool.withSession(s -> {
             assertThat(s).isSameAs(mockSession);
@@ -42,7 +42,7 @@ class NotesSessionPoolTest {
     @Test
     void withSessionWrapsRuntimeExceptionAsNotesOperationException() {
         Session mockSession = mock(Session.class);
-        pool = new NotesSessionPool(() -> mockSession, 5000);
+        pool = new NotesSessionPool(() -> mockSession, 5000, () -> {}, () -> {});
 
         assertThatThrownBy(() -> pool.withSession(s -> {
             throw new RuntimeException("callback fail");
@@ -57,7 +57,7 @@ class NotesSessionPoolTest {
         pool = new NotesSessionPool(() -> {
             createCount.incrementAndGet();
             return mockSession;
-        }, 5000);
+        }, 5000, () -> {}, () -> {});
 
         pool.withSession(s -> "a");
         pool.withSession(s -> "b");
@@ -70,7 +70,7 @@ class NotesSessionPoolTest {
     @Test
     void withSessionExecutesCallbacksSerially() throws InterruptedException {
         Session mockSession = mock(Session.class);
-        pool = new NotesSessionPool(() -> mockSession, 5000);
+        pool = new NotesSessionPool(() -> mockSession, 5000, () -> {}, () -> {});
         AtomicInteger concurrentCount = new AtomicInteger(0);
         AtomicInteger maxConcurrent   = new AtomicInteger(0);
 
