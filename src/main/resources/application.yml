@@ -1,8 +1,6 @@
 notes:
   connection:
     mode: LOCAL
-    server: eumail/iba
-    username: ${NOTES_USERNAME:}
     password: ${NOTES_PASSWORD:}
     pool-size: 5
     timeout-ms: 30000
@@ -11,9 +9,12 @@ notes:
 
 logging:
   file:
-    name: D:/Alex/Claude/hcl-notes-mcp/hcl-notes-mcp.log
-  threshold:
-    console: "OFF"
+    name: logs/mcp-server.log
+  level:
+    root: INFO
+    com.hcl.notes.mcp: DEBUG
+  pattern:
+    console: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
 
 spring:
   main:
@@ -22,5 +23,5 @@ spring:
     mcp:
       server:
         name: hcl-notes-mcp
-        version: 1.0.0
+        version: 1.1.0
         type: SYNC

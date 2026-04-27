@@ -12,11 +12,11 @@
 
     <groupId>com.hcl.notes</groupId>
     <artifactId>hcl-notes-mcp</artifactId>
-    <version>1.0.0</version>
+    <version>1.1.0</version>
     <name>HCL Notes MCP Server</name>
 
     <properties>
-        <java.version>17</java.version>
+        <java.version>21</java.version>
         <spring-ai.version>1.0.0</spring-ai.version>
     </properties>
 
@@ -39,19 +39,15 @@
             <artifactId>spring-ai-starter-mcp-server</artifactId>
         </dependency>
 
-        <!-- HCL Notes Remote API (installed locally, see Prerequisites) -->
+        <!-- HCL Notes LOCAL JNI API.
+             Not in Maven Central — install once with: tools/setup-deps.cmd
+             Scope provided: Notes.jar is already on bootclasspath of the Notes JVM.
+             Do NOT include in fat-jar (causes NoClassDefFoundError via system classloader). -->
         <dependency>
             <groupId>com.hcl.notes</groupId>
-            <artifactId>ncso</artifactId>
+            <artifactId>notes</artifactId>
             <version>14.0</version>
-        </dependency>
-
-        <!-- CORBA API — required by NCSO.jar (NotesException extends UserException);
-             removed from JDK in Java 9, restored via GlassFish standalone artifact -->
-        <dependency>
-            <groupId>org.glassfish.corba</groupId>
-            <artifactId>glassfish-corba-omgapi</artifactId>
-            <version>4.2.4</version>
+            <scope>provided</scope>
         </dependency>
 
         <!-- Test -->
@@ -73,7 +69,43 @@
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
             </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-failsafe-plugin</artifactId>
+                <configuration>
+                    <systemPropertyVariables>
+                        <notes.ini>${project.basedir}/tests/sandbox/notes.ini</notes.ini>
+                    </systemPropertyVariables>
+                    <!-- Run Notes JVM for integration tests -->
+                    <argLine>-Djava.library.path=D:/Program Files/Notes -Dnotes.ini=${project.basedir}/tests/sandbox/notes.ini</argLine>
+                </configuration>
+            </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <!-- Run integration tests against sandbox NSF only.
+             Usage: mvn verify -P sandbox-it
+             Requires: tools/init-sandbox.cmd + SandboxFixtureBuilder run first -->
+        <profile>
+            <id>sandbox-it</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-failsafe-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <goals>
+                                    <goal>integration-test</goal>
+                                    <goal>verify</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 
 </project>
