@@ -85,15 +85,40 @@
 
     <profiles>
         <!-- Run integration tests against sandbox NSF only.
+             Prerequisites:
+               1. tools\setup-deps.cmd     (installs Notes.jar into local Maven repo)
+               2. tools\init-sandbox.cmd   (creates tests/sandbox structure + notes.ini)
+               3. Place password-free Notes ID at tests/sandbox/id/sandbox.id
+               4. Run SandboxFixtureBuilder (see tools/init-sandbox.cmd output)
              Usage: mvn verify -P sandbox-it
-             Requires: tools/init-sandbox.cmd + SandboxFixtureBuilder run first -->
+             IMPORTANT: Never use production Notes databases (ADR-3). -->
         <profile>
             <id>sandbox-it</id>
+            <properties>
+                <notes.dir>D:/Program Files/Notes</notes.dir>
+                <notes.jvm>${notes.dir}/jvm/bin/java.exe</notes.jvm>
+                <sandbox.notes.ini>${project.basedir}/tests/sandbox/notes.ini</sandbox.notes.ini>
+            </properties>
             <build>
                 <plugins>
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-failsafe-plugin</artifactId>
+                        <configuration>
+                            <!-- Must run with Notes JVM — native library path and bootclasspath are Notes-specific -->
+                            <jvm>${notes.jvm}</jvm>
+                            <argLine>
+                                -Djava.library.path="${notes.dir}"
+                                -Dnotes.ini="${sandbox.notes.ini}"
+                                -Dsandbox.dir="${project.basedir}/tests/sandbox"
+                            </argLine>
+                            <additionalClasspathElements>
+                                <additionalClasspathElement>${notes.dir}/jvm/lib/ext/Notes.jar</additionalClasspathElement>
+                            </additionalClasspathElements>
+                            <includes>
+                                <include>**/*IT.java</include>
+                            </includes>
+                        </configuration>
                         <executions>
                             <execution>
                                 <goals>
