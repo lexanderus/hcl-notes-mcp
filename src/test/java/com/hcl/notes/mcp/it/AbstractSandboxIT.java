@@ -51,7 +51,7 @@ abstract class AbstractSandboxIT {
 
         NotesConnectionFactory factory = new NotesConnectionFactory(config);
         pool = new NotesSessionPool(factory::createSession, config.getTimeoutMs());
-        mailDbLocator = new MailDatabaseLocator();
+        mailDbLocator = new MailDatabaseLocator(config);
     }
 
     @AfterAll

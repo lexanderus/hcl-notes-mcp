@@ -1,5 +1,6 @@
 package com.hcl.notes.mcp.adapter;
 
+import com.hcl.notes.mcp.config.NotesConnectionConfig;
 import com.hcl.notes.mcp.connection.NotesOperationException;
 import lotus.domino.Database;
 import lotus.domino.Session;
@@ -19,7 +20,7 @@ class MailDatabaseLocatorTest {
     void setUp() throws Exception {
         session = mock(Session.class);
         db = mock(Database.class);
-        locator = new MailDatabaseLocator();
+        locator = new MailDatabaseLocator(new NotesConnectionConfig());
         when(db.isOpen()).thenReturn(true);
     }
 

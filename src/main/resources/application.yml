@@ -5,8 +5,8 @@ notes:
     timeout-ms: 30000
     # Optional: local mail replica path (relative to Notes Data dir).
     # Bypasses mail server — use when Notes.exe router is not running.
-    # Set via env: NOTES_MAIL_LOCAL_DB=mail/ashevele.nsf
-    mail-local-db: ${NOTES_MAIL_LOCAL_DB:}
+    # Default: local replica; override via env NOTES_MAIL_LOCAL_DB or JVM -Dnotes.mail.local.db
+    mail-local-db: ${NOTES_MAIL_LOCAL_DB:mail/ashevele.nsf}
   tools:
     delete-enabled: true
 

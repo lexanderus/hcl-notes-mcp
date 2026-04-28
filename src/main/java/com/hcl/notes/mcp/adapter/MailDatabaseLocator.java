@@ -51,9 +51,19 @@ public class MailDatabaseLocator {
     public Database openMailDatabase(Session session, String contextLabel) throws NotesException {
         String label = contextLabel != null ? contextLabel : "mail";
 
-        // Mode 1: local replica configured explicitly — no server connection needed
-        String localDb = config.getMailLocalDb();
+        // Mode 1: local replica configured explicitly — no server connection needed.
+        // Priority: JVM system property > Spring config > env var.
+        // JVM property (-Dnotes.mail.local.db=...) is the most reliable — always visible
+        // via System.getProperty() regardless of Spring Boot launcher or env passthrough.
+        String localDb = System.getProperty("notes.mail.local.db");
+        if (localDb == null || localDb.isBlank()) {
+            localDb = config.getMailLocalDb();
+        }
+        if (localDb == null || localDb.isBlank()) {
+            localDb = System.getenv("NOTES_MAIL_LOCAL_DB");
+        }
         if (localDb != null && !localDb.isBlank()) {
+            log.debug("Opening local mail replica: '{}'", localDb);
             return openDb(session, "", localDb, label);
         }
 
