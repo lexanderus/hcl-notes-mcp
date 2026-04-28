@@ -24,6 +24,24 @@ taskkill //F //IM java.exe
 
 ---
 
+## Критически важно: USING_LOCAL_SHARED_MEM в notes.ini
+
+**Симптом**: `NotesThread.sinitThread()` зависает навсегда → все MCP-вызовы падают по таймауту 30 с.
+
+**Причина**: При запуске Notes.exe выставляет `USING_LOCAL_SHARED_MEM=1` в notes.ini. Если Notes.exe был закрыт/убит, этот флаг остаётся `=1`. При следующем старте JNI-процесса `sinitThread()` пытается подключиться к несуществующей shared-memory-сессии и висит.
+
+**Исправление** — вручную обнулить в notes.ini:
+```
+USING_LOCAL_SHARED_MEM=0
+LOCAL_SHARED_MEM_SESSION_ID=0
+```
+
+Файл: `D:\Program Files\Notes\notes.ini`, строки 11-12.
+
+**Когда возникает**: после каждого запуска Notes.exe (клиент выставляет флаг при старте, но не сбрасывает при закрытии). Для запуска MCP-сервера Notes.exe должен быть закрыт + флаг = 0.
+
+---
+
 ## Архитектура
 
 - **Java 21 / Spring Boot 3.4** MCP сервер
