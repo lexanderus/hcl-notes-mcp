@@ -17,8 +17,19 @@ public class NotesConnectionConfig {
      */
     private long timeoutMs = 30_000;
 
+    /**
+     * Optional: path to locally replicated mail database, relative to Notes Data dir.
+     * When set, MailDatabaseLocator opens this path with an empty server (local access)
+     * instead of using MailServer/MailFile from notes.ini.
+     * Use this when the Notes router is not running (no Notes.exe) but a local replica exists.
+     * Example: "mail/ashevele.nsf"
+     */
+    private String mailLocalDb;
+
     public String getPassword() { return password; }
     public void setPassword(String password) { this.password = password; }
     public long getTimeoutMs() { return timeoutMs; }
     public void setTimeoutMs(long timeoutMs) { this.timeoutMs = timeoutMs; }
+    public String getMailLocalDb() { return mailLocalDb; }
+    public void setMailLocalDb(String mailLocalDb) { this.mailLocalDb = mailLocalDb; }
 }
