@@ -92,3 +92,102 @@ Remote: `https://github.com/lexanderus/hcl-notes-mcp.git`
 - Mail DB: `mail7\ashevele.nsf`
 - Локальная реплика: `D:/Program Files/Notes/Data/mail/ashevele.nsf` (4 GB)
 - Notes data dir: `D:/Program Files/Notes/Data/`
+
+---
+
+## Каталог баз данных IBA (IS Applications)
+
+**Путь**: `IBASRV/IBA!!iba\Application.nsf`  
+**Заголовок**: IS Applications  
+**Назначение**: Каталог всех 1086+ баз/приложений IBA Group с путями, серверами, владельцами.
+
+### Как найти путь к нужной базе
+
+1. `notesGetViewEntries("IBASRV/IBA!!iba\Application.nsf", "02. Приложение\Все\По наименованию", limit=300)`
+2. Смотреть поля каждой записи:
+   - `App_AppName` — название приложения (может быть в cp1251, отображается как ??)
+   - `SAVED_APPNAME` — то же, иногда на английском
+   - `App_AppDbServer` — сервер, например `CN=IBASRV/O=IBA`
+   - `App_AppDbPath` — путь к NSF, например `iba\Empl3iG.nsf`
+   - `SAVED_APPDBSERVER` / `SAVED_APPDBPATH` — то же, saved-копии
+   - `App_AppStatusName` — статус (Access by request, Active, Lotus template…)
+
+### Известные базы
+
+| База | Сервер | Путь | Описание |
+|------|--------|------|----------|
+| HR Info IBA Group | IBASRV/IBA | `iba\Empl3iG.nsf` | Кадровая база (Инфо Кадры) |
+| Employee Certificates | IBASRV/IBA | `iba\emplcert.nsf` | Сертификаты сотрудников |
+| Personnel Records IBA Group | IBASRV/IBA | `ibagroup\Empl52-g.nsf` | Кадровые записи |
+| Personal Data Processing Registry | IBASRV/IBA | `iba\PersDataeu.nsf` | Реестр персональных данных |
+| Personnel Records Cz | IBASRV/IBA | `cz\Emplcz.nsf` | Кадры Чехия |
+| Personnel Records BG | IBASRV/IBA | `BG\EmployBG.nsf` | Кадры Болгария |
+
+### Структура базы HR Info IBA Group (`IBASRV/IBA!!iba\Empl3iG.nsf`)
+
+**Использовать только эти виды** (остальные технические/не нужны):
+
+```
+Управленческая структура:
+  По фамилиям
+  По подразделениям
+  By Departments
+  По странам пребывания
+  По подразделениям и стране
+
+Совместители IBA Group
+Контрактники МДА
+Внештатные
+
+Управленческая структура (отчёты):
+  По подразделениям по месту
+  По странам и площадкам
+  Отчет по VPN
+  VPN нарушения
+  Possibility to change department
+  По должностям\по должностям
+
+Исполнение обязанностей
+Образование:
+  По ВУЗу
+  По году окончания
+  По типу образования
+  По ученой степени
+
+Статистика
+Уволенные
+```
+
+### Каталог почтовых ящиков / mail-in баз
+
+`notesGetViewEntries("eumail/iba!!names.nsf", "Server\Mail-In Databases and Resources", limit=111)`  
+Поля: `FullName`, `MailServer`, `MailFile` (реальный путь к NSF), `InternetAddress`
+
+---
+
+## Domino серверы IBA (из names.nsf)
+
+Вид `($Servers)` в `eumail/iba!!names.nsf` — 20 серверов:
+
+| ServerName | Domain |
+|-----------|--------|
+| CN=apps14/O=IBA | IBA |
+| CN=chis-serv/O=IBA | CHIS |
+| CN=Domino-archive/O=IBA | IBA |
+| CN=domino14/O=IBA | delete-iba |
+| CN=domino14b/O=IBA | IBA |
+| CN=DominoRest/O=IBA | IBA |
+| CN=domserv145/O=IBA | IBA |
+| CN=EU-APPS/O=IBA | IBA |
+| CN=eu-input/O=IBA | IBA |
+| CN=EU-LEI/O=IBA | IBA |
+| CN=EUMAIL/O=IBA | IBA |
+| CN=G-OUT/O=IBA | delete-IBA |
+| CN=IBASRV/O=IBA | IBA |
+| CN=IBASRV2/O=IBA | IBA |
+| CN=ln-edc/O=IBA | IBA |
+| CN=nomad-cd1/O=IBA | IBA |
+| CN=nomad-cd2/O=IBA | IBA |
+| CN=nomad-cd3/O=IBA | IBA |
+| CN=tr-gate/O=IBA | IBA |
+| CN=webmail/O=ibagomel/C=by | IBAGOMEL |
