@@ -1,3 +1,4 @@
 package com.hcl.notes.mcp.connection;
 
-public enum ConnectionMode { LOCAL, REMOTE }
+/** Only LOCAL JNI mode is supported. REMOTE/CORBA/DIIOP removed per ADR-2. */
+public enum ConnectionMode { LOCAL }

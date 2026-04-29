@@ -1,19 +1,23 @@
 notes:
   connection:
     mode: LOCAL
-    server: eumail/iba
-    username: ${NOTES_USERNAME:}
     password: ${NOTES_PASSWORD:}
-    pool-size: 5
     timeout-ms: 30000
+    # Optional: local mail replica path (relative to Notes Data dir).
+    # Bypasses mail server — use when Notes.exe router is not running.
+    # Default: local replica; override via env NOTES_MAIL_LOCAL_DB or JVM -Dnotes.mail.local.db
+    mail-local-db: ${NOTES_MAIL_LOCAL_DB:mail/ashevele.nsf}
   tools:
     delete-enabled: true
 
 logging:
   file:
-    name: D:/Alex/Claude/hcl-notes-mcp/hcl-notes-mcp.log
-  threshold:
-    console: "OFF"
+    name: logs/mcp-server.log
+  level:
+    root: INFO
+    com.hcl.notes.mcp: DEBUG
+  pattern:
+    console: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
 
 spring:
   main:
@@ -22,5 +26,5 @@ spring:
     mcp:
       server:
         name: hcl-notes-mcp
-        version: 1.0.0
+        version: 1.1.0
         type: SYNC

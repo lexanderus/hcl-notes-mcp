@@ -31,9 +31,8 @@ public class DatabaseService {
 
     public PagedResult getViewEntries(String databasePath, String view,
                                       String filter, int limit, int offset) {
-        List<NotesDocument> entries = adapter.getViewEntries(databasePath, view, filter, limit, offset);
-        long total = adapter.countViewEntries(databasePath, view, filter);
-        return new PagedResult(entries, total);
+        var result = adapter.getViewEntriesWithCount(databasePath, view, filter, limit, offset);
+        return new PagedResult(result.entries(), result.total());
     }
 
     public NotesDocument getDocument(String databasePath, String unid) {
@@ -41,9 +40,9 @@ public class DatabaseService {
     }
 
     public PagedResult searchDocuments(String databasePath, String query, int limit, int offset) {
-        List<NotesDocument> entries = adapter.searchDocuments(databasePath, query, limit, offset);
-        long total = adapter.countSearchResults(databasePath, query);
-        return new PagedResult(entries, total);
+        int maxCountDocs = Math.min(Math.max(limit * 10, 500), 5000);
+        var result = adapter.searchDocumentsWithCount(databasePath, query, limit, offset, maxCountDocs);
+        return new PagedResult(result.entries(), result.total());
     }
 
     public String createDocument(String databasePath, Map<String, Object> fields) {

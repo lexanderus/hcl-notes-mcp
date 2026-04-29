@@ -1,32 +1,35 @@
 package com.hcl.notes.mcp.config;
 
-import com.hcl.notes.mcp.connection.ConnectionMode;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
+/** Notes LOCAL JNI connection settings. REMOTE/CORBA removed per ADR-2. */
 @Component
 @ConfigurationProperties(prefix = "notes.connection")
 public class NotesConnectionConfig {
-    private ConnectionMode mode = ConnectionMode.REMOTE;
-    private String server;
-    private String username;
+    /** Notes ID password. Empty string if ID has no password (sandbox). */
     private String password;
-    private String idFile;
-    private int poolSize = 5;
+
+    /**
+     * Timeout in milliseconds for Notes operations and session initialization.
+     * Notes JNI cannot be interrupted — on timeout the operation continues running
+     * until completion; subsequent calls queue on the notes-jni thread.
+     */
     private long timeoutMs = 30_000;
 
-    public ConnectionMode getMode() { return mode; }
-    public void setMode(ConnectionMode mode) { this.mode = mode; }
-    public String getServer() { return server; }
-    public void setServer(String server) { this.server = server; }
-    public String getUsername() { return username; }
-    public void setUsername(String username) { this.username = username; }
+    /**
+     * Optional: path to locally replicated mail database, relative to Notes Data dir.
+     * When set, MailDatabaseLocator opens this path with an empty server (local access)
+     * instead of using MailServer/MailFile from notes.ini.
+     * Use this when the Notes router is not running (no Notes.exe) but a local replica exists.
+     * Example: "mail/ashevele.nsf"
+     */
+    private String mailLocalDb;
+
     public String getPassword() { return password; }
     public void setPassword(String password) { this.password = password; }
-    public String getIdFile() { return idFile; }
-    public void setIdFile(String idFile) { this.idFile = idFile; }
-    public int getPoolSize() { return poolSize; }
-    public void setPoolSize(int poolSize) { this.poolSize = poolSize; }
     public long getTimeoutMs() { return timeoutMs; }
     public void setTimeoutMs(long timeoutMs) { this.timeoutMs = timeoutMs; }
+    public String getMailLocalDb() { return mailLocalDb; }
+    public void setMailLocalDb(String mailLocalDb) { this.mailLocalDb = mailLocalDb; }
 }
