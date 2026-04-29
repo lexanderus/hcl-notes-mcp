@@ -18,9 +18,14 @@ import java.util.function.Supplier;
  * A thread pool (ForkJoinPool/cached) violates this contract and causes crashes/corruption.
  *
  * Lifecycle on the notes-jni thread:
- *   startup  : sinitThread() → createSession()
+ *   startup  : sinitThread() → createSession()  (async — does NOT block Spring Boot startup)
  *   per-call : callback.execute(session) — fully serialized, no other threads involved
  *   shutdown : session.recycle() → stermThread()
+ *
+ * Lazy initialization: the Notes JNI init task is submitted immediately at construction
+ * but the constructor does NOT block waiting for it. The first actual withSession() call
+ * will wait for initialization to complete (up to timeoutMs). This lets Spring Boot
+ * finish starting and respond to the MCP handshake before Notes is fully ready.
  */
 public class NotesSessionPool {
 
@@ -32,6 +37,8 @@ public class NotesSessionPool {
     private final Runnable threadInit;
     private final Runnable threadTerm;
     private volatile Session session;
+    /** Non-null while init is in progress; null once init has completed (successfully or not). */
+    private volatile Future<?> initFuture;
 
     public NotesSessionPool(Supplier<Session> sessionFactory, long timeoutMs) {
         this(sessionFactory, timeoutMs, NotesThread::sinitThread, NotesThread::stermThread);
@@ -49,22 +56,34 @@ public class NotesSessionPool {
             t.setDaemon(false);
             return t;
         });
-        initSession();
+        // Submit init task immediately but do NOT block — Spring Boot can finish
+        // its startup and respond to MCP handshake while Notes JNI initializes.
+        this.initFuture = executor.submit(this::doInitOnJniThread);
     }
 
-    private void initSession() {
+    /** Runs on the notes-jni thread. */
+    private void doInitOnJniThread() {
+        threadInit.run();
+        session = sessionFactory.get();
         try {
-            executor.submit(() -> {
-                threadInit.run();
-                session = sessionFactory.get();
-                try {
-                    log.info("Notes session initialized on thread '{}': user={}",
-                            Thread.currentThread().getName(), session.getUserName());
-                } catch (NotesException e) {
-                    log.info("Notes session initialized on thread '{}'",
-                            Thread.currentThread().getName());
-                }
-            }).get(timeoutMs, TimeUnit.MILLISECONDS);
+            log.info("Notes session initialized on thread '{}': user={}",
+                    Thread.currentThread().getName(), session.getUserName());
+        } catch (NotesException e) {
+            log.info("Notes session initialized on thread '{}'",
+                    Thread.currentThread().getName());
+        }
+    }
+
+    /**
+     * If initialization is still in progress, waits for it to complete (up to timeoutMs).
+     * Called from withSession() before submitting the user callback.
+     */
+    private void awaitInit() {
+        Future<?> f = initFuture;
+        if (f == null) return; // already done
+        try {
+            f.get(timeoutMs, TimeUnit.MILLISECONDS);
+            initFuture = null; // mark complete so subsequent calls skip this
         } catch (TimeoutException e) {
             throw new NotesOperationException(
                     "Notes session init timed out after " + timeoutMs + "ms", e);
@@ -81,10 +100,14 @@ public class NotesSessionPool {
      * Executes {@code callback} on the notes-jni thread with the shared Session.
      * Blocks the calling thread until the operation completes or times out.
      *
+     * If Notes JNI initialization is still in progress (lazy startup), this method
+     * waits for it to complete before submitting the callback.
+     *
      * Thread safety: all Notes objects created inside the callback are owned by notes-jni.
      * Never leak Session or any Domino object out of the callback.
      */
     public <T> T withSession(SessionCallback<T> callback) {
+        awaitInit();
         Future<T> future = executor.submit(() -> {
             try {
                 return callback.execute(session);
