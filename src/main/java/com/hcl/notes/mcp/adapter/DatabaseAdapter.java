@@ -24,7 +24,7 @@ public class DatabaseAdapter {
     public OpenResult openDatabase(String databasePath) {
         String[] parts = parsePath(databasePath);
         return pool.withSession(session -> {
-            Database db = session.getDatabase(parts[0], parts[1]);
+            Database db = session.getDatabase(parts[0], parts[1], false);
             if (db == null || !db.isOpen()) {
                 if (db != null) recycle(db);
                 throw new NotesOperationException("Database not found: " + databasePath, null);
@@ -161,7 +161,14 @@ public class DatabaseAdapter {
         return pool.withSession(session -> {
             Database db = openDb(session, parts);
             try {
-                Document doc = db.getDocumentByUNID(unid);
+                Document doc;
+                try {
+                    doc = db.getDocumentByUNID(unid);
+                } catch (NotesException e) {
+                    // id=4091: "Invalid universal id" — UNID is malformed or document was deleted
+                    if (e.id == 4091) return null;
+                    throw e;
+                }
                 if (doc == null) return null;
                 try {
                     return toModel(doc);
@@ -373,7 +380,14 @@ public class DatabaseAdapter {
         return pool.withSession(session -> {
             Database db = openDb(session, parts);
             try {
-                Document doc = db.getDocumentByUNID(unid);
+                Document doc;
+                try {
+                    doc = db.getDocumentByUNID(unid);
+                } catch (NotesException e) {
+                    // id=4091: "Invalid universal id" — UNID is malformed or document was deleted
+                    if (e.id == 4091) return false;
+                    throw e;
+                }
                 if (doc == null) return false;
                 try {
                     doc.remove(true);
@@ -401,7 +415,7 @@ public class DatabaseAdapter {
     }
 
     private Database openDb(Session session, String[] parts) throws NotesException {
-        Database db = session.getDatabase(parts[0], parts[1]);
+        Database db = session.getDatabase(parts[0], parts[1], false);
         if (db == null) {
             throw new NotesOperationException(
                     "Database not found: " + parts[0] + "!!" + parts[1], null);

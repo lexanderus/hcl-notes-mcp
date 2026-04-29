@@ -204,10 +204,32 @@ public class MailAdapter {
                 Document doc = db.getDocumentByUNID(unid);
                 if (doc == null) return false;
                 try {
-                    doc.putInFolder(folder);
+                    // putInFolder(name, createOnFail): false = use existing folder/view, do NOT create.
+                    // System views like ($Inbox) must use createOnFail=false — passing true throws
+                    // error 4005 "A folder or view with this name already exists".
+                    boolean createIfMissing = !folder.startsWith("($");
+                    doc.putInFolder(folder, createIfMissing);
                     if (!"($Inbox)".equals(folder)) {
                         doc.removeFromFolder("($Inbox)");
                     }
+                    return true;
+                } finally {
+                    recycle(doc);
+                }
+            } finally {
+                recycle(db);
+            }
+        });
+    }
+
+    public boolean removeFromFolder(String unid, String folder) {
+        return pool.withSession(session -> {
+            Database db = mailDb.openMailDatabase(session, "mail");
+            try {
+                Document doc = db.getDocumentByUNID(unid);
+                if (doc == null) return false;
+                try {
+                    doc.removeFromFolder(folder);
                     return true;
                 } finally {
                     recycle(doc);

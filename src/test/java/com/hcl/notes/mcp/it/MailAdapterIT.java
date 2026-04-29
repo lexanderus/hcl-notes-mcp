@@ -81,8 +81,10 @@ class MailAdapterIT extends AbstractSandboxIT {
 
         assertThat(moved).isTrue();
 
-        // Move back to inbox for cleanup
-        adapter.moveToFolder(unid, "($Inbox)");
+        // Cleanup: remove from TestFolder.
+        // ($Inbox) is a view (SELECT Form=Memo) in the sandbox, not a folder —
+        // putInFolder("($Inbox)") is not applicable. Docs remain visible in the view regardless.
+        adapter.removeFromFolder(unid, "TestFolder");
     }
 
     // sendMail is NOT tested — see class Javadoc (ADR-3)

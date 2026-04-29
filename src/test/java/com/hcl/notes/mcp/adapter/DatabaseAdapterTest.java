@@ -27,7 +27,7 @@ class DatabaseAdapterTest {
         pool     = mock(NotesSessionPool.class);
         when(pool.withSession(any())).thenAnswer(inv ->
                 inv.getArgument(0, NotesSessionPool.SessionCallback.class).execute(session));
-        when(session.getDatabase("domino.host", "mail/jdoe.nsf")).thenReturn(database);
+        when(session.getDatabase("domino.host", "mail/jdoe.nsf", false)).thenReturn(database);
         when(database.isOpen()).thenReturn(true);
         adapter = new DatabaseAdapter(pool);
     }

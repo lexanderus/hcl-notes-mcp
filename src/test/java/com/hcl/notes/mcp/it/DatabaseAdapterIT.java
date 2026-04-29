@@ -83,9 +83,10 @@ class DatabaseAdapterIT extends AbstractSandboxIT {
 
     @Test
     void getViewEntriesWithCount_returnsTotalMatchingFilter() {
+        // "By Category" view has Category as first sorted column — required for getAllEntriesByKey.
         // Category "Alpha" — 200 docs / 5 categories ≈ 40 docs
         var result = adapter.getViewEntriesWithCount(
-                sandboxDb("test-app.nsf"), "All Documents", "Alpha", 10, 0);
+                sandboxDb("test-app.nsf"), "By Category", "Alpha", 10, 0);
 
         assertThat(result.total()).isGreaterThan(0);
         assertThat(result.entries().size()).isLessThanOrEqualTo(10);
@@ -117,8 +118,9 @@ class DatabaseAdapterIT extends AbstractSandboxIT {
 
     @Test
     void searchDocumentsWithCount_findsDocumentsInHrDb() {
-        // test-hr.nsf has 600 employees with names like "Firstname1", "Lastname42"
-        var result = adapter.searchDocumentsWithCount(sandboxDb("test-hr.nsf"), "Firstname", 10, 0, 500);
+        // test-hr.nsf has 600 employees with field FirstName = "Firstname1", "Firstname2", etc.
+        // FTSearch requires wildcard (*) to match word-prefix — exact "Firstname" won't match "Firstname1"
+        var result = adapter.searchDocumentsWithCount(sandboxDb("test-hr.nsf"), "Firstname*", 10, 0, 500);
 
         assertThat(result.total()).isGreaterThan(0);
         assertThat(result.entries()).isNotEmpty();

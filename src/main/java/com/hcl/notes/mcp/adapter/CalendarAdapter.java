@@ -20,33 +20,40 @@ public class CalendarAdapter {
         this.mailDb = mailDb;
     }
 
+    /**
+     * Returns calendar events in the given date range by querying the ($Calendar) view.
+     *
+     * NOTE: We intentionally do NOT use session.getCalendar(db).getEntries() here.
+     * The Notes Calendar API requires databases with a full mail/C&S design AND calendar
+     * entries registered via the calendar protocol. On sandbox NSFs (created from blank
+     * template with raw Appointment documents) getEntries() hangs indefinitely, blocking
+     * the notes-jni executor thread and causing all subsequent IT tests to time out.
+     *
+     * View-based iteration is reliable for any database and works with raw Appointment
+     * documents regardless of C&S registration status.
+     */
     public List<CalendarEvent> getEvents(Instant startDate, Instant endDate) {
         return pool.withSession(session -> {
             Database db = mailDb.openMailDatabase(session, "calendar");
             try {
-                NotesCalendar cal = session.getCalendar(db);
-                DateTime startDt = session.createDateTime(Date.from(startDate));
-                DateTime endDt   = session.createDateTime(Date.from(endDate));
-                Vector<?> entries;
-                try {
-                    entries = cal.getEntries(startDt, endDt);
-                } finally {
-                    recycle(startDt);
-                    recycle(endDt);
-                }
+                View calView = db.getView("($Calendar)");
+                if (calView == null) return List.of();
                 List<CalendarEvent> events = new ArrayList<>();
+                Document doc = calView.getFirstDocument();
                 try {
-                    for (Object e : entries) {
-                        NotesCalendarEntry calEntry = (NotesCalendarEntry) e;
+                    while (doc != null) {
+                        Document next = calView.getNextDocument(doc);
                         try {
-                            CalendarEvent event = toCalendarEvent(calEntry);
+                            CalendarEvent event = toCalendarEvent(doc, startDate, endDate);
                             if (event != null) events.add(event);
                         } finally {
-                            recycle(calEntry);
+                            recycle(doc);
                         }
+                        doc = next;
                     }
                 } finally {
-                    recycle(cal);
+                    if (doc != null) recycle(doc);
+                    recycle(calView);
                 }
                 return events;
             } finally {
@@ -67,8 +74,14 @@ public class CalendarAdapter {
                     DateTime startDt = session.createDateTime(Date.from(start));
                     DateTime endDt   = session.createDateTime(Date.from(end));
                     try {
+                        // Use StartDate/StartTime/EndDate/EndTime — recognized by Notes Calendar API
+                        doc.replaceItemValue("StartDate",     startDt);
+                        doc.replaceItemValue("StartTime",     startDt);
+                        doc.replaceItemValue("EndDate",       endDt);
+                        doc.replaceItemValue("EndTime",       endDt);
+                        // StartDateTime for back-compat with toCalendarEvent read path
                         doc.replaceItemValue("StartDateTime", startDt);
-                        doc.replaceItemValue("EndDateTime", endDt);
+                        doc.replaceItemValue("EndDateTime",   endDt);
                     } finally {
                         recycle(startDt);
                         recycle(endDt);
@@ -89,30 +102,49 @@ public class CalendarAdapter {
         });
     }
 
-    private CalendarEvent toCalendarEvent(NotesCalendarEntry calEntry) throws NotesException {
-        Document doc = calEntry.getAsDocument();
-        if (doc == null) return null;
+    /**
+     * Converts a raw Appointment document to CalendarEvent, filtering by date range.
+     * Returns null if the event's start time falls outside [startFilter, endFilter].
+     * Reads StartDateTime (preferred) or StartDate as the event start time.
+     */
+    private CalendarEvent toCalendarEvent(Document doc, Instant startFilter, Instant endFilter)
+            throws NotesException {
+        String title    = doc.getItemValueString("Subject");
+        String location = doc.getItemValueString("Location");
+
+        // Read start: prefer StartDateTime (set by createEvent), fall back to StartDate
+        DateTime startDt = readFirstDateTime(doc, "StartDateTime", "StartDate");
+        DateTime endDt   = readFirstDateTime(doc, "EndDateTime",   "EndDate");
+
         try {
-            String title    = doc.getItemValueString("Subject");
-            String location = doc.getItemValueString("Location");
-            Vector<?> startVec = doc.getItemValue("StartDateTime");
-            Vector<?> endVec   = doc.getItemValue("EndDateTime");
-            DateTime startDt = (startVec != null && !startVec.isEmpty()) ? (DateTime) startVec.firstElement() : null;
-            DateTime endDt   = (endVec   != null && !endVec.isEmpty())   ? (DateTime) endVec.firstElement()   : null;
-            try {
-                return new CalendarEvent(
-                        doc.getUniversalID(), title,
-                        startDt != null ? Instant.ofEpochMilli(startDt.toJavaDate().getTime()) : null,
-                        endDt   != null ? Instant.ofEpochMilli(endDt.toJavaDate().getTime())   : null,
-                        (location != null && !location.isEmpty()) ? location : null,
-                        List.of()
-                );
-            } finally {
-                recycle(startDt);
-                recycle(endDt);
-            }
+            if (startDt == null) return null;
+            Instant eventStart = Instant.ofEpochMilli(startDt.toJavaDate().getTime());
+
+            // Filter: event start must be within [startFilter, endFilter]
+            if (eventStart.isBefore(startFilter) || eventStart.isAfter(endFilter)) return null;
+
+            Instant eventEnd = endDt != null ? Instant.ofEpochMilli(endDt.toJavaDate().getTime()) : null;
+            return new CalendarEvent(
+                    doc.getUniversalID(), title,
+                    eventStart, eventEnd,
+                    (location != null && !location.isEmpty()) ? location : null,
+                    List.of()
+            );
         } finally {
-            recycle(doc);
+            recycle(startDt);
+            recycle(endDt);
         }
+    }
+
+    /** Returns the first DateTime value from the first field name that has a value. */
+    @SuppressWarnings("unchecked")
+    private DateTime readFirstDateTime(Document doc, String... fieldNames) throws NotesException {
+        for (String field : fieldNames) {
+            Vector<?> vec = doc.getItemValue(field);
+            if (vec != null && !vec.isEmpty() && vec.firstElement() instanceof DateTime) {
+                return (DateTime) vec.firstElement();
+            }
+        }
+        return null;
     }
 }

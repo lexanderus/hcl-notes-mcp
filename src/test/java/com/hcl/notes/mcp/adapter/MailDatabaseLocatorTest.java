@@ -28,19 +28,19 @@ class MailDatabaseLocatorTest {
     void openMailDatabase_opensCorrectDatabase() throws Exception {
         when(session.getEnvironmentString("MailFile",   true)).thenReturn("mail/user.nsf");
         when(session.getEnvironmentString("MailServer", true)).thenReturn("mailsrv");
-        when(session.getDatabase("mailsrv", "mail/user.nsf")).thenReturn(db);
+        when(session.getDatabase("mailsrv", "mail/user.nsf", false)).thenReturn(db);
 
         Database result = locator.openMailDatabase(session);
 
         assertThat(result).isSameAs(db);
-        verify(session).getDatabase("mailsrv", "mail/user.nsf");
+        verify(session).getDatabase("mailsrv", "mail/user.nsf", false);
     }
 
     @Test
     void openMailDatabase_cachesMailFileAndServer() throws Exception {
         when(session.getEnvironmentString("MailFile",   true)).thenReturn("mail/user.nsf");
         when(session.getEnvironmentString("MailServer", true)).thenReturn("mailsrv");
-        when(session.getDatabase("mailsrv", "mail/user.nsf")).thenReturn(db);
+        when(session.getDatabase("mailsrv", "mail/user.nsf", false)).thenReturn(db);
 
         locator.openMailDatabase(session);
         locator.openMailDatabase(session);
@@ -64,7 +64,7 @@ class MailDatabaseLocatorTest {
     void openMailDatabase_throwsWhenDatabaseNotOpen() throws Exception {
         when(session.getEnvironmentString("MailFile",   true)).thenReturn("mail/user.nsf");
         when(session.getEnvironmentString("MailServer", true)).thenReturn("mailsrv");
-        when(session.getDatabase("mailsrv", "mail/user.nsf")).thenReturn(db);
+        when(session.getDatabase("mailsrv", "mail/user.nsf", false)).thenReturn(db);
         when(db.isOpen()).thenReturn(false);
 
         assertThatThrownBy(() -> locator.openMailDatabase(session))
@@ -76,7 +76,7 @@ class MailDatabaseLocatorTest {
     void openMailDatabase_contexLabelAppearsInErrorMessage() throws Exception {
         when(session.getEnvironmentString("MailFile",   true)).thenReturn("mail/user.nsf");
         when(session.getEnvironmentString("MailServer", true)).thenReturn("mailsrv");
-        when(session.getDatabase("mailsrv", "mail/user.nsf")).thenReturn(db);
+        when(session.getDatabase("mailsrv", "mail/user.nsf", false)).thenReturn(db);
         when(db.isOpen()).thenReturn(false);
 
         assertThatThrownBy(() -> locator.openMailDatabase(session, "calendar"))

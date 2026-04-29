@@ -63,8 +63,12 @@ public class MailDatabaseLocator {
             localDb = System.getenv("NOTES_MAIL_LOCAL_DB");
         }
         if (localDb != null && !localDb.isBlank()) {
-            log.debug("Opening local mail replica: '{}'", localDb);
-            return openDb(session, "", localDb, label);
+            // Strip "!!" absolute-path prefix if present — that notation is for the combined
+            // "server!!path" string; when calling 3-arg getDatabase(server, path, create)
+            // separately, the path must not include the "!!" prefix.
+            String localPath = localDb.startsWith("!!") ? localDb.substring(2) : localDb;
+            log.debug("Opening local mail replica: '{}'", localPath);
+            return openDb(session, "", localPath, label);
         }
 
         // Mode 2: read MailServer/MailFile from notes.ini (server access)
@@ -88,7 +92,7 @@ public class MailDatabaseLocator {
 
     private Database openDb(Session session, String server, String filePath, String label)
             throws NotesException {
-        Database db = session.getDatabase(server, filePath);
+        Database db = session.getDatabase(server, filePath, false);
         if (db == null) {
             throw new NotesOperationException(
                     "Cannot get " + label + " database: "
