@@ -69,14 +69,38 @@ mvn clean package -DskipTests
 
 ## Шаг 4 — Пароль Notes ID
 
-> **Никогда не храните пароль в config-файлах MCP-клиентов.** Используйте user-environment.
+> **Никогда не храните пароль в config-файлах MCP-клиентов.** Все примеры в Шаге 5 рассчитаны на то, что пароль лежит в **User Environment Variable** Windows. Так его не видно в JSON/YAML, не утечёт при коммите конфига и не светится в скриншотах.
 
 PowerShell (один раз, перманентно для пользователя):
 ```powershell
 [Environment]::SetEnvironmentVariable('NOTES_PASSWORD','<ваш_пароль>','User')
 ```
 
-После этого выйти и зайти в Windows-сессию заново (новые env-переменные подтягиваются).
+Проверка:
+```powershell
+[Environment]::GetEnvironmentVariable('NOTES_PASSWORD','User')
+```
+
+**Важно:** новое значение env подхватывают только **новые** процессы. После `setx` нужно либо **перезайти в Windows-сессию**, либо перезапустить тот процесс-родитель, из которого стартует MCP-клиент (Goose/Antigravity/Cline/Claude Code). Уже работающие приложения старое окружение не обновят.
+
+### Как это работает
+
+`start-mcp.bat` запускается через `cmd.exe`, который наследует User env. `java.exe`, в свою очередь, наследует env от `cmd.exe`. Spring Boot читает `NOTES_PASSWORD` из системного env (см. `application.yml:notes.connection.password=${NOTES_PASSWORD:}`). Поэтому в `env`-блоке клиента эту переменную **указывать не нужно** — она и так дойдёт по цепочке.
+
+### Удалить пароль из ранее заведённых конфигов
+
+Если вы раньше клали пароль в `env`-блок MCP-клиента — уберите его. Поля типа `NOTES_CONNECTION_MODE: LOCAL` и `NOTES_MAIL_LOCAL_DB: ...` оставляйте, они не секретные.
+
+### Альтернатива (если клиент изолирует env и не наследует User env)
+
+Некоторые MCP-клиенты передают дочернему процессу **только** то, что явно указано в `env`-блоке, и не пробрасывают User env. Симптом: в логе `mcp-server.log` ошибка `Initialize failed` или `Wrong password`. В этом случае:
+
+- либо вернуть `NOTES_PASSWORD` в `env`-блок именно этого клиента,
+- либо добавить в начало `start-mcp.bat` перед запуском java:
+  ```bat
+  for /f "tokens=2*" %%a in ('reg query "HKCU\Environment" /v NOTES_PASSWORD 2^>nul ^| find "NOTES_PASSWORD"') do set "NOTES_PASSWORD=%%b"
+  ```
+  Это явно прочитает значение из реестра пользователя — независимо от родительского env.
 
 ## Шаг 5 — Подключить к MCP-клиенту
 

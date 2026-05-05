@@ -56,3 +56,6 @@ org/
 
 # Personal data dumps
 vacation_balances.txt
+
+# Portable distribution staging
+dist/
