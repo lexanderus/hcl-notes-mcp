@@ -45,6 +45,12 @@ public class DatabaseService {
         return new PagedResult(result.entries(), result.total());
     }
 
+    public PagedResult formulaSearchDocuments(String databasePath, String formula,
+                                               int limit, int offset) {
+        var result = adapter.formulaSearchDocuments(databasePath, formula, limit, offset);
+        return new PagedResult(result.entries(), result.total());
+    }
+
     public String createDocument(String databasePath, Map<String, Object> fields) {
         return adapter.createDocument(databasePath, fields);
     }
@@ -59,5 +65,11 @@ public class DatabaseService {
                     "Delete is disabled via notes.tools.delete-enabled=false");
         }
         return adapter.deleteDocument(databasePath, unid);
+    }
+
+    public DatabaseAdapter.AttachmentResult getAttachment(String databasePath, String unid,
+                                                           String fileName, int maxSizeKb) {
+        long maxBytes = (long) maxSizeKb * 1024;
+        return adapter.getAttachment(databasePath, unid, fileName, maxBytes);
     }
 }

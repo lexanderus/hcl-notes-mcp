@@ -10,15 +10,6 @@ notes:
   tools:
     delete-enabled: true
 
-logging:
-  file:
-    name: logs/mcp-server.log
-  level:
-    root: INFO
-    com.hcl.notes.mcp: DEBUG
-  pattern:
-    console: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
-
 spring:
   main:
     banner-mode: "off"

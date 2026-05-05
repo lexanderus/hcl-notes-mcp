@@ -5,8 +5,14 @@ import com.hcl.notes.mcp.connection.NotesSessionPool;
 import com.hcl.notes.mcp.model.NotesDocument;
 import lotus.domino.*;
 import org.springframework.stereotype.Component;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Instant;
 import java.util.*;
+import java.util.Base64;
+import java.util.Set;
 
 import static com.hcl.notes.mcp.adapter.NotesUtils.recycle;
 
@@ -44,17 +50,15 @@ public class DatabaseAdapter {
             try {
                 Vector<?> views = db.getViews();
                 List<Map<String, Object>> result = new ArrayList<>();
-                try {
-                    for (Object v : views) {
-                        View view = (View) v;
-                        try {
-                            result.add(Map.of("name", view.getName(), "entryCount", view.getEntryCount()));
-                        } finally {
-                            recycle(view);
-                        }
+                for (Object v : views) {
+                    View view = (View) v;
+                    try {
+                        result.add(Map.of("name", view.getName()));
+                    } catch (Exception e) {
+                        // skip problematic views
+                    } finally {
+                        recycle(view);
                     }
-                } catch (NotesException e) {
-                    throw new NotesOperationException("Failed to list views: " + e.text, e);
                 }
                 return result;
             } finally {
@@ -74,7 +78,7 @@ public class DatabaseAdapter {
                 List<NotesDocument> docs = new ArrayList<>();
                 try {
                     if (filter != null) {
-                        ViewEntryCollection col = view.getAllEntriesByKey(filter, true);
+                        ViewEntryCollection col = view.getAllEntriesByKey(filter, false);
                         try {
                             ViewEntry ve = col.getFirstEntry();
                             int skipped = 0;
@@ -139,7 +143,7 @@ public class DatabaseAdapter {
                 if (view == null) throw new NotesOperationException("View not found: " + viewName, null);
                 try {
                     if (filter != null) {
-                        ViewEntryCollection col = view.getAllEntriesByKey(filter, true);
+                        ViewEntryCollection col = view.getAllEntriesByKey(filter, false);
                         try {
                             return (long) col.getCount();
                         } finally {
@@ -196,7 +200,7 @@ public class DatabaseAdapter {
                 long total = 0;
                 try {
                     if (filter != null) {
-                        ViewEntryCollection col = view.getAllEntriesByKey(filter, true);
+                        ViewEntryCollection col = view.getAllEntriesByKey(filter, false);
                         try {
                             total = (long) col.getCount();
                             ViewEntry ve = col.getFirstEntry();
@@ -336,6 +340,38 @@ public class DatabaseAdapter {
         });
     }
 
+    /** Notes formula language search — works on databases without a permanent FT index. */
+    public PagedSearchResult formulaSearchDocuments(String databasePath, String formula,
+                                                     int limit, int offset) {
+        String[] parts = parsePath(databasePath);
+        return pool.withSession(session -> {
+            Database db = openDb(session, parts);
+            try {
+                DocumentCollection col = db.search(formula, null, 0);
+                try {
+                    long total = (long) col.getCount();
+                    if (total == 0) return new PagedSearchResult(List.of(), 0);
+                    List<NotesDocument> docs = new ArrayList<>();
+                    Document doc = col.getNthDocument(offset + 1);
+                    int count = 0;
+                    while (doc != null && count < limit) {
+                        docs.add(toModel(doc));
+                        Document next = col.getNextDocument(doc);
+                        recycle(doc);
+                        doc = next;
+                        count++;
+                    }
+                    if (doc != null) recycle(doc);
+                    return new PagedSearchResult(docs, total);
+                } finally {
+                    recycle(col);
+                }
+            } finally {
+                recycle(db);
+            }
+        });
+    }
+
     public String createDocument(String databasePath, Map<String, Object> fields) {
         String[] parts = parsePath(databasePath);
         return pool.withSession(session -> {
@@ -373,6 +409,85 @@ public class DatabaseAdapter {
                 recycle(db);
             }
         });
+    }
+
+    /** Text file extensions returned as UTF-8 plain text; everything else as Base64. */
+    private static final Set<String> TEXT_EXTENSIONS = Set.of(
+            "txt", "html", "htm", "xml", "csv", "json", "log", "md", "properties", "yaml", "yml");
+
+    public record AttachmentResult(String fileName, long size, String encoding, String content) {}
+
+    /**
+     * Extracts a named attachment from a Notes document and returns its content.
+     *
+     * @param databasePath  server!!path
+     * @param unid          document UNID
+     * @param fileName      attachment file name (as returned in $FILE field)
+     * @param maxSizeBytes  maximum allowed size; throws if attachment is larger
+     */
+    public AttachmentResult getAttachment(String databasePath, String unid,
+                                          String fileName, long maxSizeBytes) {
+        String[] parts = parsePath(databasePath);
+        return pool.withSession(session -> {
+            Database db = openDb(session, parts);
+            try {
+                Document doc;
+                try {
+                    doc = db.getDocumentByUNID(unid);
+                } catch (NotesException e) {
+                    if (e.id == 4091) throw new NotesOperationException(
+                            "Document not found: " + unid, e);
+                    throw e;
+                }
+                if (doc == null) throw new NotesOperationException(
+                        "Document not found: " + unid, null);
+                try {
+                    EmbeddedObject eo = doc.getAttachment(fileName);
+                    if (eo == null) throw new NotesOperationException(
+                            "Attachment not found: " + fileName, null);
+                    try {
+                        long size = eo.getFileSize();
+                        if (size > maxSizeBytes) {
+                            throw new NotesOperationException(
+                                    "Attachment too large: " + size + " bytes (limit " + maxSizeBytes
+                                    + "). Use maxSizeKb parameter to increase the limit.", null);
+                        }
+                        // Extract to temp file on the JNI thread
+                        Path tempDir = Path.of(System.getProperty("java.io.tmpdir"));
+                        // Use UNID prefix to avoid collisions
+                        Path tempFile = tempDir.resolve(unid.substring(0, 8) + "_" + fileName);
+                        try {
+                            eo.extractFile(tempFile.toString());
+                            byte[] bytes = Files.readAllBytes(tempFile);
+                            String ext = getExtension(fileName).toLowerCase();
+                            if (TEXT_EXTENSIONS.contains(ext)) {
+                                return new AttachmentResult(fileName, size, "utf-8",
+                                        new String(bytes, StandardCharsets.UTF_8));
+                            } else {
+                                return new AttachmentResult(fileName, size, "base64",
+                                        Base64.getEncoder().encodeToString(bytes));
+                            }
+                        } catch (IOException e) {
+                            throw new NotesOperationException(
+                                    "Failed to read extracted attachment: " + e.getMessage(), e);
+                        } finally {
+                            try { Files.deleteIfExists(tempFile); } catch (IOException ignored) {}
+                        }
+                    } finally {
+                        recycle(eo);
+                    }
+                } finally {
+                    recycle(doc);
+                }
+            } finally {
+                recycle(db);
+            }
+        });
+    }
+
+    private static String getExtension(String fileName) {
+        int dot = fileName.lastIndexOf('.');
+        return (dot >= 0 && dot < fileName.length() - 1) ? fileName.substring(dot + 1) : "";
     }
 
     public boolean deleteDocument(String databasePath, String unid) {

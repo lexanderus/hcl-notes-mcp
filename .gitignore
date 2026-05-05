@@ -36,3 +36,23 @@ notes.lck
 # OS
 .DS_Store
 Thumbs.db
+
+# HCL Notes proprietary libraries (licensed, must be supplied by user from local Notes install)
+lib/Notes.jar
+lib/corba-omgapi.jar
+
+# Extracted fat-jar artifacts from manual `jar -xf` — never commit
+BOOT-INF/
+META-INF/
+org/
+
+# Local agent / IDE state
+.claude/
+.goose/
+.goosehints
+
+# Compressed log archives
+*.gz
+
+# Personal data dumps
+vacation_balances.txt
